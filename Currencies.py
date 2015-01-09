@@ -88,7 +88,6 @@ class SysTrayIcon(QtGui.QSystemTrayIcon):
         
         self.time = QtGui.QAction(self)
         self.time.triggered.connect(self.loop)
-        self.time.setText("Update")
         self.menu.addAction(self.time)
         self.menu.addSeparator()
         
@@ -100,12 +99,22 @@ class SysTrayIcon(QtGui.QSystemTrayIcon):
         self.setContextMenu(self.menu)
         self.timer = QtCore.QTimer(self)
         self.timer.timeout.connect(self.loop)
-        self.activated.connect(self.dor)
-    
-    def dor(self, reason):
+        self.loop()
+        self.activated.connect(self.handle_click)
+        
+    def handle_click(self, reason):
+        
         if reason == QtGui.QSystemTrayIcon.MiddleClick:
             self.closeEvent()
-        
+        elif reason == QtGui.QSystemTrayIcon.Trigger:
+            
+            y = self.geometry().top() - 120
+            x = self.geometry().left() - 130
+    
+            pos = QtCore.QPoint(x, y)
+            self.contextMenu().move(pos)
+            self.contextMenu().show()
+            
     def init_list(self):
         self.a = [Economic(i) for i in MAS]
         site = [i for i in MAS]
@@ -114,7 +123,7 @@ class SysTrayIcon(QtGui.QSystemTrayIcon):
             action.setObjectName(s)
             action.triggered.connect(self.open_site)
             self.menu.addAction(action)
-        
+            
     def loop(self):
         if self.timer.isActive(): self.timer.stop()
         for c, w in zip(self.a, self.menu.actions()):
@@ -133,9 +142,19 @@ class SysTrayIcon(QtGui.QSystemTrayIcon):
         
     def open_site(self):
         webbrowser.open(self.sender().objectName())
-            
-    def closeEvent(self):
-        sys.exit()
+    
+    def closeEvent(self, event):
+        quit_msg = "Are you sure you want to exit the program?"
+        reply = QtGui.QMessageBox.question(self, 'Message', 
+                                           quit_msg, QtGui.QMessageBox.Yes, QtGui.QMessageBox.No)
+
+        if reply == QtGui.QMessageBox.Yes:
+            event.accept()
+        else:
+            event.ignore()
+              
+        #def closeEvent(self):
+        #    sys.exit()
         
 def main():
     app = QtGui.QApplication(sys.argv)
