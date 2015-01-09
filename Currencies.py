@@ -143,26 +143,21 @@ class SysTrayIcon(QtGui.QSystemTrayIcon):
     def open_site(self):
         webbrowser.open(self.sender().objectName())
     
-    def closeEvent(self, event):
-        quit_msg = "Are you sure you want to exit the program?"
-        reply = QtGui.QMessageBox.question(self, 'Message', 
-                                           quit_msg, QtGui.QMessageBox.Yes, QtGui.QMessageBox.No)
-
+    def closeEvent(self):
+        q = QtGui.QWidget()
+        q.setWindowIcon(QtGui.QIcon(EXIT))
+        reply = QtGui.QMessageBox.question(q, 'Message', 'Are you sure to quit?', QtGui.QMessageBox.Yes | QtGui.QMessageBox.No, QtGui.QMessageBox.No)
         if reply == QtGui.QMessageBox.Yes:
-            event.accept()
-        else:
-            event.ignore()
-              
-        #def closeEvent(self):
-        #    sys.exit()
+            QtGui.QApplication.quit()
         
 def main():
     app = QtGui.QApplication(sys.argv)
+    app.setQuitOnLastWindowClosed(False)
     style = app.style()
     icon = QtGui.QIcon(MENU)
     trayIcon = SysTrayIcon(icon)
     trayIcon.show()
-    trayIcon.showMessage("Биржа", "Нажмите Update", 1000)
+    trayIcon.showMessage("Биржа",strftime("%H"+":"+"%M"+":"+"%S"), 1000)
     sys.exit(app.exec_())
     
 if __name__ == "__main__":
