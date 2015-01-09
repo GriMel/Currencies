@@ -21,6 +21,7 @@ UP = "src/up.png"
 EQUAL = "src/equal.png"
 EXIT = "src/exit.png"
 MENU = "src/exchange.png"
+UPDATE_TIME = 30000 # 30 seconds * 1000 milliseconds
 
 def site_on():
     try:
@@ -65,8 +66,8 @@ class Economic():
         try:
             self.get()
             self.changed()
-        except: 
-            return "error"
+        except:
+            return None
         return "{:7.3f}   {}".format(self.curr, self.name)
 
 class MainMenu (QtGui.QWidget):
@@ -87,6 +88,7 @@ class SysTrayIcon(QtGui.QSystemTrayIcon):
         
         self.time = QtGui.QAction(self)
         self.time.triggered.connect(self.loop)
+        self.time.setText("Update")
         self.menu.addAction(self.time)
         self.menu.addSeparator()
         
@@ -96,12 +98,14 @@ class SysTrayIcon(QtGui.QSystemTrayIcon):
         self.exitAction.triggered.connect(self.closeEvent)
         self.menu.addAction(self.exitAction)
         self.setContextMenu(self.menu)
-        self.loop()
-        
         self.timer = QtCore.QTimer(self)
         self.timer.timeout.connect(self.loop)
-        self.timer.start(30000)
+        self.activated.connect(self.dor)
     
+    def dor(self, reason):
+        if reason == QtGui.QSystemTrayIcon.MiddleClick:
+            self.closeEvent()
+        
     def init_list(self):
         self.a = [Economic(i) for i in MAS]
         site = [i for i in MAS]
@@ -112,8 +116,11 @@ class SysTrayIcon(QtGui.QSystemTrayIcon):
             self.menu.addAction(action)
         
     def loop(self):
+        if self.timer.isActive(): self.timer.stop()
         for c, w in zip(self.a, self.menu.actions()):
-            w.setText(c.return_string())
+            value = c.return_string()
+            if not value: continue
+            w.setText(value)
             if c.change == "=":
                 #w.setIcon(QtGui.QIcon.fromTheme("face-smirk"))
                 w.setIcon(QtGui.QIcon(EQUAL))
@@ -122,10 +129,11 @@ class SysTrayIcon(QtGui.QSystemTrayIcon):
             else:
                 w.setIcon(QtGui.QIcon(DOWN))
         self.time.setText(strftime("%H"+":"+"%M"+":"+"%S"))
-    
+        self.timer.start(UPDATE_TIME)
+        
     def open_site(self):
         webbrowser.open(self.sender().objectName())
-        
+            
     def closeEvent(self):
         sys.exit()
         
@@ -135,6 +143,7 @@ def main():
     icon = QtGui.QIcon(MENU)
     trayIcon = SysTrayIcon(icon)
     trayIcon.show()
+    trayIcon.showMessage("Биржа", "Нажмите Update", 1000)
     sys.exit(app.exec_())
     
 if __name__ == "__main__":
