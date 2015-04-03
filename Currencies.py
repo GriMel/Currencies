@@ -14,6 +14,7 @@ import sys
 import re
 import webbrowser
 from urllib.parse import urlparse
+import sqlite3
 
 MAS = ["http://www.investing.com/currencies/eur-rub",       #eur-rub
        "http://www.investing.com/currencies/usd-rub",       #usd-rub
@@ -33,6 +34,21 @@ def site_on():
     except URLError as err: pass
     return False
 
+
+class DataBase():
+    
+    def __init__(self):
+        pass
+    
+    def create_db(self):
+        pass
+    
+    def open_db(self):
+        pass
+    
+    def commit(self):
+        pass
+    
 #last_last - css selector
 class Economic():
     
@@ -47,9 +63,12 @@ class Economic():
         self.change = None
     
     def get_name(self):
+        '''
         pattern = "/(\w+)"
         name = re.findall(pattern, self.site)[2].upper()
-        return name
+        '''
+        name = urlparse(self.site).path.split('/')[2].strip('-oil')
+        return name.upper()
     
     def get_value(self):
         request = Request(self.site, headers=self.headers)
@@ -161,7 +180,7 @@ class SysTrayIcon(QtGui.QSystemTrayIcon):
 def main():
     app = QtGui.QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
-    style = app.style()
+    #style = app.style()
     icon = QtGui.QIcon(MENU)
     trayIcon = SysTrayIcon(icon)
     trayIcon.show()
