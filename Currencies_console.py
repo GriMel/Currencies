@@ -36,7 +36,7 @@ class Economic():
         self.curr = None
         self.change = None
     
-    def get(self):
+    def get_value(self):
         request = Request(self.site, headers=self.headers)
         getcontext().prec = 2
         self.curr = Decimal(bs(urlopen(request)).find(id='last_last').text)
@@ -70,13 +70,13 @@ class Economic():
 #for qt app
  
     def do(self):
-        self.get()
+        self.get_value()
         self.changed()
         self.show()
 #GUI PART
     
     def do_gui(self):
-        self.get()
+        self.get_value()
         return self.curr
 
 def site_on():
@@ -144,7 +144,7 @@ display = Display(visible=0, size=(800, 600))
 display.start()
 print(display.is_started)
 browser = webdriver.Firefox()
-browser.get(site)
+browser.get_value(site)
 xpath = '//*[@id="last_last"]'
 curr = browser.find_element_by_css_selector('#last_last')
 print (curr.text)

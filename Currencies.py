@@ -4,13 +4,16 @@ from bs4 import BeautifulSoup as bs
 from urllib.request import urlopen, Request
 from urllib.error import URLError
 from decimal import getcontext, Decimal
-from colorama import Fore, Back, Style, init
 from time import strftime
+
 from PyQt4 import QtGui, QtCore
-from os.path import isfile
+#from colorama import Fore, Back, Style, init
+#from os.path import isfile
+
 import sys
 import re
 import webbrowser
+from urllib.parse import urlparse
 
 MAS = ["http://www.investing.com/currencies/eur-rub",       #eur-rub
        "http://www.investing.com/currencies/usd-rub",       #usd-rub
@@ -48,7 +51,7 @@ class Economic():
         name = re.findall(pattern, self.site)[2].upper()
         return name
     
-    def get(self):
+    def get_value(self):
         request = Request(self.site, headers=self.headers)
         getcontext().prec = 2
         self.curr = Decimal(bs(urlopen(request)).find(id='last_last').text)
@@ -64,7 +67,7 @@ class Economic():
     
     def return_string(self):
         try:
-            self.get()
+            self.get_value()
             self.changed()
         except:
             return None
@@ -143,6 +146,11 @@ class SysTrayIcon(QtGui.QSystemTrayIcon):
     def open_site(self):
         webbrowser.open(self.sender().objectName())
     
+    def collect_com_and_curr(self):
+        comm_url = "http://www.investing.com/commodities/"
+        curr_xpath = "/html/body/div[7]/section/div[4]/div[3]/div/div[1]/a[2]/i"
+        pass
+        
     def closeEvent(self):
         q = QtGui.QWidget()
         q.setWindowIcon(QtGui.QIcon(EXIT))
