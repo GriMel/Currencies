@@ -4,7 +4,10 @@ from bs4 import BeautifulSoup as bs
 from urllib.request import urlopen, Request
 from urllib.error import URLError
 from decimal import getcontext, Decimal
-from time import strftime
+from time import strftime, sleep
+from lxml import etree
+from pyvirtualdisplay import Display
+from selenium import webdriver
 
 from PyQt4 import QtGui, QtCore
 #from colorama import Fore, Back, Style, init
@@ -26,6 +29,10 @@ EQUAL = "src/equal.png"
 EXIT = "src/exit.png"
 MENU = "src/exchange.png"
 UPDATE_TIME = 30000 # 30 seconds * 1000 milliseconds
+#-------------FOR PARSING INVESTING.COM--------------
+URL_COMMO = "http://www.investing.com/commodities/"
+URL_CURR = "http://www.investing.com/currencies/"
+headers = {"User-Agent":"Mozilla/5.0 (X11; U; Linux i686) Gecko/20071127 Firefox/2.0.0.11"}
 
 def site_on():
     try:
@@ -34,7 +41,78 @@ def site_on():
     except URLError as err: pass
     return False
 
-
+class Investing():
+    
+    def browser_start(self):
+        self.display = Display(visible=0, size=(800, 600))
+        print("Starting virtual display...")
+        self.display.start()
+        print("Display is ON")
+        self.browser = webdriver.Firefox()
+        print("Virtual browser is ran")
+        self.browser.get(URL_CURR)
+    
+    def browser_stop(self):
+        self.browser.close()
+        self.display.stop()
+        
+    def browser_click(self, id):
+        element = self.browser.find_element_by_id(id)
+        element.click()
+        
+    def parse_init(self, url):
+        request = Request(url, headers=headers)
+        s = urlopen(request)
+        sitePath = s.read()
+        parser = etree.HTMLParser()
+        self.tree = etree.fromstring(sitePath, parser)
+        
+    def parse_curr(self, soup):
+        tableClass = "inlineblock alignTop curExpCol"
+        titleClass = "curTitle inlineblock bold"
+        lengths = []
+        titles = []
+        lists = []
+        
+        #getting count for every country
+        for i in soup.findAll("span", {"class":tableClass}):
+            for ul in i.findAll('ul'):
+                lengths.append(len(ul.findAll('li')))
+        
+        #getting names of every country
+        for i in soup.findAll("span", {"class":titleClass}):
+            titles.append(i.text)
+        
+        #getting USD/AUS, href, and United States Dollars - Austrian Dollars
+        for i in soup.findAll("span", {"class" : tableClass}):
+            for j in i.select('li > a'):
+                href = j.get('href')
+                title = j.get('title')
+                text = j.text
+                dr = {'title' : title, 'href' : href, 'text' : text}
+                lists.append(dr)
+    
+    
+    def parse_xpath_hor(self):
+        for elem in self.tree.xpath('/html/body/div[7]/section/div[4]/div[1]/ul'):
+            for i in elem:
+                text = i.getchildren()[0].text
+                id = i.attrib['id']
+                self.browser_click(id)
+                self.parse_xpath_ver()
+    
+    def parse_xpath_ver(self):
+        parser = etree.HTMLParser()
+        sitePath = self.browser.page_source
+        tree = etree.fromstring(sitePath, parser)
+        for elem in tree.xpath('/html/body/div[7]/section/div[4]/div[3]/div/div[1]'):
+            for i in elem:
+                text = i.getchildren()[1].text
+                id = i.attrib['id']
+                self.browser_click(id)
+                soup = bs(self.browser.page_source)
+                self.parse_curr(soup)
+                
 class DataBase():
     
     def __init__(self):
@@ -92,13 +170,11 @@ class Economic():
             return None
         return "{:7.3f}   {}".format(self.curr, self.name)
 
-class MainMenu (QtGui.QWidget):
+class Picker(QtGui.QWidget):
     
     def __init__(self):
-        super(MainMenu, self).__init__()
-        self.button = QtGui.QPushButton(self)
-        self.setGeometry(300, 300, 250, 150)
-        
+        pass
+          
 class SysTrayIcon(QtGui.QSystemTrayIcon):
     
     def __init__(self, icon, parent=None):
