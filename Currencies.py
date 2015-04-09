@@ -4,7 +4,7 @@ from bs4 import BeautifulSoup as bs
 from urllib.request import urlopen, Request
 from urllib.error import URLError
 from decimal import getcontext, Decimal
-from time import strftime, sleep
+from time import strftime, sleep, time
 from lxml import etree
 from pyvirtualdisplay import Display
 from selenium import webdriver
@@ -18,6 +18,7 @@ import re
 import webbrowser
 from urllib.parse import urlparse
 import sqlite3
+from os import path
 
 MAS = ["http://www.investing.com/currencies/eur-rub",       #eur-rub
        "http://www.investing.com/currencies/usd-rub",       #usd-rub
@@ -34,6 +35,8 @@ URL_COMMO = "http://www.investing.com/commodities/"
 URL_CURR = "http://www.investing.com/currencies/"
 headers = {"User-Agent":"Mozilla/5.0 (X11; U; Linux i686) Gecko/20071127 Firefox/2.0.0.11"}
 
+BASE_NAME = 'test.db'
+
 def site_on():
     try:
         response=urlopen('http://investing.com',timeout=1)
@@ -43,6 +46,9 @@ def site_on():
 
 class Investing():
     
+    def __init__(self):
+        self.last_id = 1
+        
     def browser_start(self):
         self.display = Display(visible=0, size=(800, 600))
         print("Starting virtual display...")
@@ -55,6 +61,7 @@ class Investing():
     def browser_stop(self):
         self.browser.close()
         self.display.stop()
+        print("Browser has been stopped")
         
     def browser_click(self, id):
         element = self.browser.find_element_by_id(id)
@@ -74,16 +81,16 @@ class Investing():
         titles = []
         lists = []
         
-        #getting count for every country
+        #getting count for every zone
         for i in soup.findAll("span", {"class":tableClass}):
             for ul in i.findAll('ul'):
                 lengths.append(len(ul.findAll('li')))
         
-        #getting names of every country
+        #getting names of every zone
         for i in soup.findAll("span", {"class":titleClass}):
             titles.append(i.text)
         
-        #getting USD/AUS, href, and United States Dollars - Austrian Dollars
+        #getting Rate USD/ASD, href, and  Full Name - Austrian Dollars
         for i in soup.findAll("span", {"class" : tableClass}):
             for j in i.select('li > a'):
                 href = j.get('href')
@@ -91,17 +98,56 @@ class Investing():
                 text = j.text
                 dr = {'title' : title, 'href' : href, 'text' : text}
                 lists.append(dr)
+        
+        #create dictionary
+        #    {"id" : 1,
+        #     "title" : "America",
+        #     "content":[{'title':"USD/ASD", 'href' : "http://...", 'text':text},
+        #                {'title':"USD/RUB", 'href' : "http://..", 'text':text}]}
+        #
+        #
+        l = self.create_curr_list(titles, lengths, lists, last_id)
+        return l
+        
+    def create_curr_list(self, titles, lengths, lists, last_id):
+        rates_list = []
+        i = 0
+        try:
+            for zone in titles:
+                zone_list = []
+                num = titles.index(zone)
+                j = lengths[num]
+                id = last_id + num
+                
+                assert i < j
+                for c in range(i, i + j):
+                    zone_list.append(lists[c])
+                rates_list.append({"id" : id,"zone":zone, "content" : zone_list})
+                i = j
+        except:
+            print("Done")
+        
+        assert rates_list    
+        return rates_list
     
-    
-    def parse_xpath_hor(self):
+    def show_curr_list(self, l):
+        for elem in l:
+            print("id - {}, zone - {}".format(elem.get("id"), elem.get("zone")))
+            for curr in elem.get('content'):
+                print("text - {}, title - {}, link = {}".format(curr.get('text'), curr.get('title'), curr.get('href')))
+            
+    def parse_continents_hor(self):
+        self.main_list = []
         for elem in self.tree.xpath('/html/body/div[7]/section/div[4]/div[1]/ul'):
             for i in elem:
                 text = i.getchildren()[0].text
                 id = i.attrib['id']
                 self.browser_click(id)
-                self.parse_xpath_ver()
+                print(text, ' horizontal')
+                self.main_list.append({'text':text, 'content':self.parse_currencies_ver()})
     
-    def parse_xpath_ver(self):
+    def parse_currencies_ver(self):
+        currs_list = []
         parser = etree.HTMLParser()
         sitePath = self.browser.page_source
         tree = etree.fromstring(sitePath, parser)
@@ -111,20 +157,42 @@ class Investing():
                 id = i.attrib['id']
                 self.browser_click(id)
                 soup = bs(self.browser.page_source)
-                self.parse_curr(soup)
+                print(text, 'vertical')
+                currs_list.append({'text':text, 'content':self.parse_curr(soup)}) #'US Dollar' : [] 
+        return currs_list
+    
+    def show(self):
+        for continent in self.main_list:
+            print(continent.get('text'))
+            for currency in continent.get('content'):
+                print(currency.get('text'))
+                rates = currency.get('content')
+                self.show_curr_list(rates)         
                 
 class DataBase():
     
-    def __init__(self):
-        pass
+    def __init__(self, name, schema):
+        self.name = name
+        self.schema = schema
     
     def create_db(self):
+        dbIsNew = not path.exists(self.name)
+        self.conn = sqlite3.connect(self.name)
+        if dbIsNew:
+            print("Creating schema")
+            with open(self.schema) as f:
+                schema = f.read()
+            self.conn.executescript(schema)
+            print("Schema created")
+        else:
+            print("Schema already exists")
+            print(self.name)
+        self.conn.commit()
+    
+    def add(self, dic):
         pass
     
-    def open_db(self):
-        pass
-    
-    def commit(self):
+    def show(self):
         pass
     
 #last_last - css selector
@@ -252,7 +320,20 @@ class SysTrayIcon(QtGui.QSystemTrayIcon):
         reply = QtGui.QMessageBox.question(q, 'Message', 'Are you sure to quit?', QtGui.QMessageBox.Yes | QtGui.QMessageBox.No, QtGui.QMessageBox.No)
         if reply == QtGui.QMessageBox.Yes:
             QtGui.QApplication.quit()
-        
+def test():
+    i = Investing()
+    titles = ['America', 'Europe', 'Asia']
+    lengths = [1,2,3]
+    last_id = 1
+    lists = [{'title' : "USD/ASD", 'href' : "http://inv.com/usd-asd", 'text' : "US dollar-Aus dollar"},
+             {'title' : "USD/EUR", 'href' : "http://inv.com/usd-eur", 'text' : "US dollar-Euro"},
+             {'title' : "GBP/EUR", 'href' : "http://inv.com/gbp-eur", 'text' : "Pound - Euro"},
+             {'title' : "CHY/EUR", 'href' : "http://inv.com/chy-eur", 'text' : "Chinese Yen - Euro"},
+             {'title' : "CHY/USD", 'href' : "http://inv.com/chy-usd", 'text' : "Chinese Yen - US dollar"},
+             {'title' : "CHY/GBP", 'href' : "http://inv.com/chy-gbp", 'text' : "Chinese Yen - Pound"}]
+    l = i.create_curr_list(titles, lengths, lists, last_id)
+    i.show_curr_list(l)
+    
 def main():
     app = QtGui.QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
@@ -262,6 +343,17 @@ def main():
     trayIcon.show()
     trayIcon.showMessage("Биржа",strftime("%H"+":"+"%M"+":"+"%S"), 1000)
     sys.exit(app.exec_())
-    
+
+def parse():
+    start = time()
+    i = Investing()
+    i.browser_start()
+    i.parse_init(URL_CURR)
+    i.parse_continents_hor()
+    i.show()
+    print(time()-start, " seconds passed for execution")
+        
 if __name__ == "__main__":
-    main()
+    #test()
+    #main()
+    parse()
