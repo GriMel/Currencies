@@ -106,27 +106,30 @@ class Investing():
         #                {'title':"USD/RUB", 'href' : "http://..", 'text':text}]}
         #
         #
-        l = self.create_curr_list(titles, lengths, lists, last_id)
+        l = self.create_curr_list(titles, lengths, lists)
         return l
         
-    def create_curr_list(self, titles, lengths, lists, last_id):
+    def create_curr_list(self, titles, lengths, lists):
+        last_id = self.last_id
         rates_list = []
         i = 0
         try:
             for zone in titles:
+                print(zone)
                 zone_list = []
                 num = titles.index(zone)
                 j = lengths[num]
                 id = last_id + num
                 
-                assert i < j
                 for c in range(i, i + j):
                     zone_list.append(lists[c])
+                    print(lists[c])
                 rates_list.append({"id" : id,"zone":zone, "content" : zone_list})
-                i = j
+                i += j
         except:
-            print("Done")
+            print("|")
         
+        self.last_id = id
         assert rates_list    
         return rates_list
     
@@ -143,7 +146,6 @@ class Investing():
                 text = i.getchildren()[0].text
                 id = i.attrib['id']
                 self.browser_click(id)
-                print(text, ' horizontal')
                 self.main_list.append({'text':text, 'content':self.parse_currencies_ver()})
     
     def parse_currencies_ver(self):
@@ -157,7 +159,6 @@ class Investing():
                 id = i.attrib['id']
                 self.browser_click(id)
                 soup = bs(self.browser.page_source)
-                print(text, 'vertical')
                 currs_list.append({'text':text, 'content':self.parse_curr(soup)}) #'US Dollar' : [] 
         return currs_list
     
@@ -308,11 +309,6 @@ class SysTrayIcon(QtGui.QSystemTrayIcon):
         
     def open_site(self):
         webbrowser.open(self.sender().objectName())
-    
-    def collect_com_and_curr(self):
-        comm_url = "http://www.investing.com/commodities/"
-        curr_xpath = "/html/body/div[7]/section/div[4]/div[3]/div/div[1]/a[2]/i"
-        pass
         
     def closeEvent(self):
         q = QtGui.QWidget()
@@ -349,8 +345,12 @@ def parse():
     i = Investing()
     i.browser_start()
     i.parse_init(URL_CURR)
-    i.parse_continents_hor()
-    i.show()
+    try:
+        i.parse_continents_hor()
+        i.show()
+    except:
+        i.browser_stop()
+        
     print(time()-start, " seconds passed for execution")
         
 if __name__ == "__main__":
