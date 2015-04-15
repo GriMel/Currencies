@@ -35,7 +35,8 @@ URL_COMMO = "http://www.investing.com/commodities/"
 URL_CURR = "http://www.investing.com/currencies/"
 headers = {"User-Agent":"Mozilla/5.0 (X11; U; Linux i686) Gecko/20071127 Firefox/2.0.0.11"}
 
-BASE_NAME = 'test.db'
+BASE = 'test.db'
+SCHEMA = 'schema.sql'
 
 def site_on():
     try:
@@ -48,6 +49,8 @@ class Investing():
     
     def __init__(self):
         self.last_id = 1
+        self.continent_id = 1
+        self.currency_id = 1
         
     def browser_start(self):
         self.display = Display(visible=0, size=(800, 600))
@@ -68,11 +71,13 @@ class Investing():
         element.click()
         
     def parse_init(self, url):
+        print('url, ', url)
         request = Request(url, headers=headers)
         s = urlopen(request)
         sitePath = s.read()
         parser = etree.HTMLParser()
         self.tree = etree.fromstring(sitePath, parser)
+        print("Parser is ready")
         
     def parse_curr(self, soup):
         tableClass = "inlineblock alignTop curExpCol"
@@ -124,59 +129,66 @@ class Investing():
                 for c in range(i, i + j):
                     zone_list.append(lists[c])
                     print(lists[c])
-                rates_list.append({"id" : id,"zone":zone, "content" : zone_list})
+                rates_list.append({"id" : id,"text":zone, "content" : zone_list})
                 i += j
         except:
             print("|")
         
-        self.last_id = id
+        self.last_id = id +1
         assert rates_list    
         return rates_list
     
     def show_curr_list(self, l):
         for elem in l:
-            print("id - {}, zone - {}".format(elem.get("id"), elem.get("zone")))
+            print("id - {}, zone - {}".format(elem.get("id"), elem.get("text")))
             for curr in elem.get('content'):
-                print("text - {}, title - {}, link = {}".format(curr.get('text'), curr.get('title'), curr.get('href')))
-            
+                print("text : \"{}\", title : \"{}\", href : \"{}\"".format(curr.get('text'), curr.get('title'), curr.get('href')))
     def parse_continents_hor(self):
         self.main_list = []
-        for elem in self.tree.xpath('/html/body/div[7]/section/div[4]/div[1]/ul'):
+        for elem in self.tree.xpath('//*[@id="filterBoxExpTabsTop"]'):
+            #/html/body/div[7]/section/div[4]/div[1]/ul
             for i in elem:
                 text = i.getchildren()[0].text
-                id = i.attrib['id']
-                self.browser_click(id)
-                self.main_list.append({'text':text, 'content':self.parse_currencies_ver()})
-    
+                elem_id = i.attrib['id']
+                self.browser_click(elem_id)
+                continent_id = self.continent_id
+                self.main_list.append({'id':continent_id, 'text':text, 'content':self.parse_currencies_ver()})
+                self.continent_id+=1
+                
     def parse_currencies_ver(self):
         currs_list = []
         parser = etree.HTMLParser()
         sitePath = self.browser.page_source
         tree = etree.fromstring(sitePath, parser)
-        for elem in tree.xpath('/html/body/div[7]/section/div[4]/div[3]/div/div[1]'):
+        for elem in tree.xpath('//*[@id="filterBoxTable"]'):
+            #//*[@id="filterBoxTable"]
+            #/html/body/div[7]/section/div[4]/div[3]/div/div[1]
             for i in elem:
                 text = i.getchildren()[1].text
-                id = i.attrib['id']
-                self.browser_click(id)
+                elem_id = i.attrib['id']
+                self.browser_click(elem_id)
                 soup = bs(self.browser.page_source)
-                currs_list.append({'text':text, 'content':self.parse_curr(soup)}) #'US Dollar' : [] 
+                currency_id = self.currency_id
+                currs_list.append({'id':currency_id, 'text':text, 'content':self.parse_curr(soup)}) #'US Dollar' : []
+                self.currency_id +=1 
         return currs_list
     
     def show(self):
         for continent in self.main_list:
-            print(continent.get('text'))
+            print("id:{}, {}".format(continent.get('id'), continent.get('text')))
             for currency in continent.get('content'):
-                print(currency.get('text'))
+                print("id:{}, {}".format(currency.get('id'), currency.get('text')))
                 rates = currency.get('content')
                 self.show_curr_list(rates)         
                 
 class DataBase():
     
-    def __init__(self, name, schema):
+    def __init__(self, name, schema, db):
         self.name = name
         self.schema = schema
+        self.db = db
     
-    def create_db(self):
+    def db_create(self):
         dbIsNew = not path.exists(self.name)
         self.conn = sqlite3.connect(self.name)
         if dbIsNew:
@@ -190,10 +202,34 @@ class DataBase():
             print(self.name)
         self.conn.commit()
     
-    def add(self, dic):
-        pass
-    
-    def show(self):
+    def add(self):
+        with sqlite3.connect(self.name) as conn:
+            cur = conn.cursor()
+            
+            for continent in self.db:
+                cur.execute('INSERT INTO Continents VALUES(?,?)',
+                            (continent.get('id'), continent.get('text')))
+                #print("id:{}, {}".format(continent.get('id'), continent.get('text')))
+                currencies = continent.get('content')
+                for currency in currencies:
+                    cur.execute('INSERT INTO Currencies VALUES(?,?,?)',
+                                 (currency.get('id'), currency.get('text'), continent.get('id')))
+                    print("id:{}, {}".format(currency.get('id'), currency.get('text')))
+                    zones = currency.get('content')
+                    for zone in zones:
+                        print(zone.get('id'), " zone id")
+                        cur.execute('INSERT INTO Zones VALUES (?,?,?,?)',
+                                    (zone.get('id'), zone.get('text'), continent.get('id'), currency.get('id')))
+                        rates = zone.get('content')
+                        for rate in rates:
+                            print(rate)
+                            print(rate.get('id'))
+                            cur.execute('INSERT INTO Rates VALUES (?,?,?,?,?,?)',
+                                         (rate.get('id'), rate.get('text'), rate.get('href'), continent.get('id'), currency.get('id'), zone.get('id')))
+            conn.commit()
+            print("made commit")
+            
+    def db_show(self):
         pass
     
 #last_last - css selector
@@ -316,7 +352,8 @@ class SysTrayIcon(QtGui.QSystemTrayIcon):
         reply = QtGui.QMessageBox.question(q, 'Message', 'Are you sure to quit?', QtGui.QMessageBox.Yes | QtGui.QMessageBox.No, QtGui.QMessageBox.No)
         if reply == QtGui.QMessageBox.Yes:
             QtGui.QApplication.quit()
-def test():
+
+def test_show():
     i = Investing()
     titles = ['America', 'Europe', 'Asia']
     lengths = [1,2,3]
@@ -329,6 +366,46 @@ def test():
              {'title' : "CHY/GBP", 'href' : "http://inv.com/chy-gbp", 'text' : "Chinese Yen - Pound"}]
     l = i.create_curr_list(titles, lengths, lists, last_id)
     i.show_curr_list(l)
+    
+def test_db():
+    test_db = [{"id" : 1,
+                "text":"Majors",
+                "content":[
+                           {"id":1, 
+                            "text":"European Euro", 
+                            "content":[
+                                       {"id":1,
+                                        "text":"Pacific",
+                                        "content":[{"text": "AUD/UAH", 
+                                                    "title" : "Australian Dollar Ukrainian Hryvnia",
+                                                    "href" : "http://www.investing.com/currencies/aud-uah"},
+                                                   {"text" : "USD/UAH", 
+                                                    "title" : "US Dollar Ukrainian Hryvnia",
+                                                    "href" : "http://www.investing.com/currencies/usd-uah"}]},
+                                        {"id":2,
+                                        "text":"Central America",
+                                        "content":[{"text" : "UAH/RUB", 
+                                                    "title" : "Ukrainian Hryvnia Russian Ruble", 
+                                                    "href" : "http://www.investing.com/currencies/uah-rub"},
+                                                   {"text":"DKK/UAH",
+                                                    "title" : "Danish Krone Ukrainian Hryvnia",
+                                                    "href" : "http://www.investing.com/currencies/dkk-uah"}]}]},
+                           {"id":2,
+                            "text":"US Dollar",
+                            "content":[
+                                       {"id":3,
+                                        "text":"South America",
+                                        "content":[{"text" : "TRY/OMR",
+                                                    "title" : "Turkish Lira Omani Rial",
+                                                    "href" : "http://www.investing.com/currencies/try-omr"},
+                                                   {"text" : "TRY/BHD",
+                                                    "title" : "Turkish Lira Baharain Dinar",
+                                                    "href" : "http://www.investing.com/currencies/try-bhd"}]}]}]}]
+    
+    d = DataBase(BASE, SCHEMA, test_db)
+    d.db_create()
+    d.add()
+    
     
 def main():
     app = QtGui.QApplication(sys.argv)
@@ -350,10 +427,30 @@ def parse():
         i.show()
     except:
         i.browser_stop()
-        
+        print("Something WENT WRONG")
+    
+    d = DataBase(BASE, SCHEMA, i.main_list)
+    d.db_create()
+    d.add()
+    
     print(time()-start, " seconds passed for execution")
-        
+def test_pars():
+    url = "http://www.investing.com/currencies/"
+    request = Request(url, headers=headers)
+    s = urlopen(request)
+    sitePath = s.read()
+    parser = etree.HTMLParser()
+    tree = etree.fromstring(sitePath, parser)
+    for elem in tree.xpath('//*[@id="filterBoxExpTabsTop"]'):
+        for i in elem:
+            text = i.getchildren()[0].text
+            elem_id = i.attrib['id']
+            print(text, id)
+    print("DOne")
+    #//*[@id="filterBoxExpTabsTop"]
 if __name__ == "__main__":
     #test()
     #main()
     parse()
+    #test_pars()
+    #test_db()
