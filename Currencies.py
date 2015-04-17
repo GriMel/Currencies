@@ -63,14 +63,12 @@ class Investing():
     def browser_stop(self):
         self.browser.close()
         self.display.stop()
-        print("Browser has been stopped")
         
     def browser_click(self, id):
         element = self.browser.find_element_by_id(id)
         element.click()
         
     def parse_init(self, url):
-        print('url, ', url)
         request = Request(url, headers=headers)
         s = urlopen(request)
         sitePath = s.read()
@@ -79,8 +77,7 @@ class Investing():
         self.last_id = 1
         self.continent_id = 1
         self.currency_id = 1
-        print("Parser is ready")
-        
+                
     def parse_curr(self, soup):
         tableClass = "inlineblock alignTop curExpCol"
         titleClass = "curTitle inlineblock bold"
@@ -100,20 +97,12 @@ class Investing():
         #getting Rate USD/ASD, href, and  Full Name - Austrian Dollars
         for i in soup.findAll("span", {"class" : tableClass}):
             for j in i.select('li > a'):
-                print(j)
                 href = j.get('href')
                 title = j.get('title')
-                text = j.text
-                dr = {'title' : title, 'href' : href, 'name' : text}
+                name = j.text
+                dr = {'title' : title, 'href' : href, 'name' : name}
                 lists.append(dr)
         
-        #create dictionary
-        #    {"id" : 1,
-        #     "title" : "America",
-        #     "content":[{'title':"USD/ASD", 'href' : "http://...", 'name':text},
-        #                {'title':"USD/RUB", 'href' : "http://..", 'name':text}]}
-        #
-        #
         l = self.create_curr_list(titles, lengths, lists)
         return l
         
@@ -127,35 +116,36 @@ class Investing():
                 zone_list = []
                 num = titles.index(zone)
                 j = lengths[num]
-                id = last_id + num
+                z_id = last_id + num
                 
                 for c in range(i, i + j):
                     zone_list.append(lists[c])
                     print(lists[c])
-                rates_list.append({"id" : id,"text":zone, "content" : zone_list})
+                rates_list.append({'id' : z_id,'name':zone, 'content' : zone_list})
                 i += j
         except:
             print("|")
         
-        self.last_id = id +1
+        self.last_id = z_id +1
         assert rates_list    
         return rates_list
     
     def show_curr_list(self, l):
         for elem in l:
-            print("id - {}, zone - {}".format(elem.get("id"), elem.get("text")))
+            print("id - {}, zone - {}".format(elem.get('id'), elem.get('name')))
             for curr in elem.get('content'):
-                print("text : \"{}\", title : \"{}\", href : \"{}\"".format(curr.get('name'), curr.get('title'), curr.get('href')))
+                print("'name' : \"{}\", 'title' : \"{}\", href : \"{}\"".format(curr.get('name'), curr.get('title'), curr.get('href')))
+                
     def parse_continents_hor(self):
         self.main_list = []
         for elem in self.tree.xpath('//*[@id="filterBoxExpTabsTop"]'):
             #/html/body/div[7]/section/div[4]/div[1]/ul
             for i in elem:
-                text = i.getchildren()[0].text
+                name = i.getchildren()[0].text
                 elem_id = i.attrib['id']
                 self.browser_click(elem_id)
                 continent_id = self.continent_id
-                self.main_list.append({'id':continent_id, 'name':text, 'content':self.parse_currencies_ver()})
+                self.main_list.append({'id':continent_id, 'name':name, 'content':self.parse_currencies_ver()})
                 self.continent_id+=1
                 
     def parse_currencies_ver(self):
@@ -167,20 +157,20 @@ class Investing():
             #//*[@id="filterBoxTable"]
             #/html/body/div[7]/section/div[4]/div[3]/div/div[1]
             for i in elem:
-                text = i.getchildren()[1].text
+                name = i.getchildren()[1].text
                 elem_id = i.attrib['id']
                 self.browser_click(elem_id)
                 soup = bs(self.browser.page_source)
                 currency_id = self.currency_id
-                currs_list.append({'id':currency_id, 'name':text, 'content':self.parse_curr(soup)}) #'US Dollar' : []
+                currs_list.append({'id':currency_id, 'name':name, 'content':self.parse_curr(soup)}) #'US Dollar' : []
                 self.currency_id +=1 
         return currs_list
     
     def show(self):
         for continent in self.main_list:
-            print("id:{}, {}".format(continent.get('id'), continent.get('name')))
+            print("'id':{}, 'name' : {}".format(continent.get('id'), continent.get('name')))
             for currency in continent.get('content'):
-                print("id:{}, {}".format(currency.get('id'), currency.get('name')))
+                print("'id':{}, 'name' {}".format(currency.get('id'), currency.get('name')))
                 rates = currency.get('content')
                 self.show_curr_list(rates)         
                 
@@ -239,7 +229,7 @@ class DataBase():
             rates = cursor.execute("SELECT * FROM Rates").fetchall()
             for continent in continents:
                 co_id, co_n = continent[0], continent[1]
-                self.db.append({'id' : co_id, "text": co_n, "content":[]})
+                self.db.append({'id' : co_id, 'name': co_n, 'content':[]})
                 currencies = cursor.execute("SELECT * FROM Currencies WHERE ContinentId = ?", (co_id,)).fetchall()
                 for currency in currencies:
                     cur_id, cur_n = currency[0], currency[1]
@@ -252,15 +242,8 @@ class DataBase():
                         for rate in rates:
                             r_id, r_n, r_t, r_href = rate[0], rate[1], rate[2], rate[3]
                             self.db[-1]['content'][-1]['content'][-1]['content'].append({'id':r_id, 'name' : r_n,'title':r_t, 'href':r_href})
-            #currencies = cursor.execute("SELECT * FROM Currencies")
-            #zones = cursor.execute("SELECT * FROM Zones")
-            #rates = cursor.execute("SELECT * FROM Rates")
-            #print(continents)
         assert self.db, "Database is empty"
         return self.db
-    
-    def db_show(self):
-        pass
     
 #last_last - css selector
 class Economic():
@@ -398,39 +381,39 @@ def test_show():
     i.show_curr_list(l)
     
 def test_db():
-    test_db = [{"id" : 1,
-                "text":"Majors",
-                "content":[
-                           {"id":1, 
-                            "text":"European Euro", 
-                            "content":[
-                                       {"id":1,
-                                        "text":"Pacific",
-                                        "content":[{"text": "AUD/UAH", 
-                                                    "title" : "Australian Dollar Ukrainian Hryvnia",
-                                                    "href" : "http://www.investing.com/currencies/aud-uah"},
-                                                   {"text" : "USD/UAH", 
-                                                    "title" : "US Dollar Ukrainian Hryvnia",
-                                                    "href" : "http://www.investing.com/currencies/usd-uah"}]},
-                                        {"id":2,
-                                        "text":"Central America",
-                                        "content":[{"text" : "UAH/RUB", 
-                                                    "title" : "Ukrainian Hryvnia Russian Ruble", 
-                                                    "href" : "http://www.investing.com/currencies/uah-rub"},
-                                                   {"text":"DKK/UAH",
-                                                    "title" : "Danish Krone Ukrainian Hryvnia",
-                                                    "href" : "http://www.investing.com/currencies/dkk-uah"}]}]},
-                           {"id":2,
-                            "text":"US Dollar",
-                            "content":[
-                                       {"id":3,
-                                        "text":"South America",
-                                        "content":[{"text" : "TRY/OMR",
-                                                    "title" : "Turkish Lira Omani Rial",
-                                                    "href" : "http://www.investing.com/currencies/try-omr"},
-                                                   {"text" : "TRY/BHD",
-                                                    "title" : "Turkish Lira Baharain Dinar",
-                                                    "href" : "http://www.investing.com/currencies/try-bhd"}]}]}]}]
+    test_db = [{'id' : 1,
+                'name':"Majors",
+                'content':[
+                           {'id':1, 
+                            'name':"European Euro", 
+                            'content':[
+                                       {'id':1,
+                                        'name':"Pacific",
+                                        'content':[{'name': "AUD/UAH", 
+                                                    'title' : "Australian Dollar Ukrainian Hryvnia",
+                                                    'href' : "http://www.investing.com/currencies/aud-uah"},
+                                                   {'name' : "USD/UAH", 
+                                                    'title' : "US Dollar Ukrainian Hryvnia",
+                                                    'href' : "http://www.investing.com/currencies/usd-uah"}]},
+                                        {'id':2,
+                                        'name':"Central America",
+                                        'content':[{'name' : "UAH/RUB", 
+                                                    'title' : "Ukrainian Hryvnia Russian Ruble", 
+                                                    'href' : "http://www.investing.com/currencies/uah-rub"},
+                                                   {'name':"DKK/UAH",
+                                                    'title' : "Danish Krone Ukrainian Hryvnia",
+                                                    'href' : "http://www.investing.com/currencies/dkk-uah"}]}]},
+                           {'id':2,
+                            'name':"US Dollar",
+                            'content':[
+                                       {'id':3,
+                                        'name':"South America",
+                                        'content':[{'name' : "TRY/OMR",
+                                                    'title' : "Turkish Lira Omani Rial",
+                                                    'href' : "http://www.investing.com/currencies/try-omr"},
+                                                   {'name' : "TRY/BHD",
+                                                    'title' : "Turkish Lira Baharain Dinar",
+                                                    'href' : "http://www.investing.com/currencies/try-bhd"}]}]}]}]
     
     d = DataBase(BASE,test_db)
     d.db_create(SCHEMA)
@@ -450,23 +433,28 @@ def main():
 def parse_add_show():
     i = Investing()
     i.browser_start()
+    print("VIRTUAL DISPLAY - ON")
+    print("VIRTUAL BROWSER - ON")
     i.parse_init(URL_CURR)
+    print("PARSER STARTED")
     try:
         i.parse_continents_hor()
     except:
         i.browser_stop()
-        print("Parsing went wrong")
+        print("!!!PARSING WENT WRONG!!!")
         sys.exit()
     finally:
         print("PARSER FINISHED")
         sleep(3)
-        
+    
+    print("CREATING DATABASE STARTED")
+    sleep(3)
     try:
         d = DataBase(BASE)
         d.db_create(SCHEMA)
         d.add(i.main_list)
     except:
-        print("Creating database went wrong")
+        print("!!!CREATING DATABASE WENT WRONG!!!")
         sys.exit()
     finally:
         print("DATABASE CREATED")
@@ -521,6 +509,7 @@ if __name__ == "__main__":
     #test()
     #main()
     #parse()
-    test_load()
+    #test_load()
     #test_pars()
     #test_db()
+    parse_add_show()
