@@ -9,6 +9,7 @@ from lxml import etree
 from pyvirtualdisplay import Display
 from selenium import webdriver
 
+
 from PyQt4 import QtGui, QtCore
 #from colorama import Fore, Back, Style, init
 #from os.path import isfile
@@ -244,6 +245,11 @@ class DataBase():
                             self.db[-1]['content'][-1]['content'][-1]['content'].append({'id':r_id, 'name' : r_n,'title':r_t, 'href':r_href})
         assert self.db, "Database is empty"
         return self.db
+
+class AddCurrency(QtGui.QWidget):
+    
+    def __init__(self):
+        pass
     
 #last_last - css selector
 class Economic():
@@ -288,9 +294,87 @@ class Economic():
             return None
         return "{:7.3f}   {}".format(self.curr, self.name)
 
-class Picker(QtGui.QWidget):
+class Chooser(QtGui.QWidget):
     
-    def __init__(self):
+    def __init__(self, db, parent=None):
+        super(Chooser, self).__init__()
+        self.db = db
+        self.setupUI()
+        self.translateUI()
+        
+    def setupUI(self):
+        self.setObjectName("Chooser")
+        self.tabWidget = QtGui.QTabWidget(self)
+        
+        for hor, continent in enumerate(self.db):
+            
+            con_widget = QtGui.QWidget()
+            con_name = continent['name']
+            tbox_widget = QtGui.QToolBox()
+            tbox_widget.currentChanged.connect(self.update_grid)
+            currencies = continent.get('content')
+            for ver, currency in enumerate(currencies):
+                cur_name = currency.get('name')
+                cur_widget = QtGui.QWidget()
+                tbox_widget.addItem(cur_widget, cur_name)
+                zones = currency['content']
+                grid_layout = self.fill_grid(hor, ver, zones)
+            
+
+            hor_layout = QtGui.QHBoxLayout(con_widget)
+            hor_layout.addWidget(tbox_widget)
+            hor_layout.addLayout(grid_layout)
+            
+            self.tabWidget.addTab(con_widget, con_name)
+        self.tabWidget.adjustSize()
+        
+    def update_grid(self):
+        
+        widget = self.tabWidget.currentWidget()
+        hor = self.tabWidget.currentIndex()
+        ver = self.sender().currentIndex()
+        
+        db = self.db
+        zones = db[hor]['content'][ver]['content']
+        grid_new = self.fill_grid(hor, ver, zones)
+        layout = widget.layout()
+        grid_old = layout.itemAt(1)
+        
+        while grid_old.count():
+            item = grid_old.takeAt(0)
+            widget = item.widget()
+            widget.deleteLater()
+        layout.removeItem(grid_old)
+        layout.addLayout(grid_new)
+        
+    def fill_grid(self, hor, ver, zones):
+        grid_new = QtGui.QGridLayout()
+        row = 0
+        col = 0
+        for zone in zones:
+            name = zone['name']
+            lbl = QtGui.QLabel(name)
+            grid_new.addWidget(lbl, row, col, 1, 1)
+            rates = zone['content']
+            for rate in rates:
+                row += 1
+                r_name = rate['name']
+                r_href = rate['href']
+                print(r_href)
+                r_title = rate['title']
+                btn = QtGui.QPushButton(r_name)
+                btn.setToolTip(r_title)
+                btn.setObjectName(r_href)
+                btn.clicked.connect(self.go_site)
+                grid_new.addWidget(btn, row, col, 1, 1)
+            row = 0
+            col +=1
+        return grid_new
+    
+    def go_site(self):
+        webbrowser.open(self.sender().objectName())
+        
+    def translateUI(self):
         pass
           
 class SysTrayIcon(QtGui.QSystemTrayIcon):
@@ -494,7 +578,7 @@ def test_pars():
         for i in elem:
             text = i.getchildren()[0].text
             elem_id = i.attrib['id']
-            print(text, id)
+            print(text, elem_id)
     print("DOne")
     #//*[@id="filterBoxExpTabsTop"]
     
@@ -505,6 +589,9 @@ def test_load():
     i = Investing(l)
     i.show()
 
+def test_add_currency():
+    pass
+
 if __name__ == "__main__":
     #test()
     #main()
@@ -513,3 +600,4 @@ if __name__ == "__main__":
     #test_pars()
     #test_db()
     parse_add_show()
+    
