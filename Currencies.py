@@ -15,7 +15,6 @@ from PyQt4 import QtGui, QtCore
 #from os.path import isfile
 
 import sys
-import re
 import webbrowser
 from urllib.parse import urlparse
 import sqlite3
@@ -35,7 +34,7 @@ UPDATE_TIME = 30000
 #-------------FOR PARSING INVESTING.COM----------------------
 URL_COMMO = "http://www.investing.com/commodities/"
 URL_CURR = "http://www.investing.com/currencies/"
-headers = {"User-Agent":"Mozilla/5.0 (X11; U; Linux i686) Gecko/20071127 Firefox/2.0.0.11"}
+HEADERS = {"User-Agent":"Mozilla/5.0 (X11; U; Linux i686) Gecko/20071127 Firefox/2.0.0.11"}
 #-------------SQL resources-------
 BASE = 'test.db'
 SCHEMA = 'schema.sql'
@@ -47,30 +46,32 @@ def site_on():
     except URLError as err: pass
     return False
 
+
 class Investing():
-    
+    '''class for parsing site to one array'''
     def __init__(self, l=None):
         self.main_list = l
         
     def browser_start(self):
-        self.display = Display(visible=0, size=(800, 600))
-        print("Starting virtual display...")
-        self.display.start()
-        print("Display is ON")
-        self.browser = webdriver.Firefox()
-        print("Virtual browser is ran")
-        self.browser.get(URL_CURR)
-    
+        '''start display and browser'''
+        self.display = Display(visible=0, size=(800, 600))  #virtual display
+        self.display.start()                                #start virtual display
+        self.browser = webdriver.Firefox()                  #start browser
+        self.browser.get(URL_CURR)                          #go to URL_CURR
+        
     def browser_stop(self):
+        '''close display and browser'''
         self.browser.close()
         self.display.stop()
         
-    def browser_click(self, id):
-        element = self.browser.find_element_by_id(id)
+    def browser_click(self, el_id):
+        '''handle click'''
+        element = self.browser.find_element_by_id(el_id)
         element.click()
         
     def parse_init(self, url):
-        request = Request(url, headers=headers)
+        '''init parser'''
+        request = Request(url, HEADERS=HEADERS)
         s = urlopen(request)
         sitePath = s.read()
         parser = etree.HTMLParser()
@@ -245,15 +246,10 @@ class DataBase():
                             self.db[-1]['content'][-1]['content'][-1]['content'].append({'id':r_id, 'name' : r_n,'title':r_t, 'href':r_href})
         assert self.db, "Database is empty"
         return self.db
-
-class AddCurrency(QtGui.QWidget):
-    
-    def __init__(self):
-        pass
-    
+  
 #last_last - css selector
 class Economic():
-    
+    '''class for manipulating with concrete currency'''
     def __init__(self, site):
         
         self.headers = {"User-Agent":"Mozilla/5.0 (X11; U; Linux i686) Gecko/20071127 Firefox/2.0.0.11"}
@@ -273,7 +269,7 @@ class Economic():
         return name.upper()
     
     def get_value(self):
-        request = Request(self.site, headers=self.headers)
+        request = Request(self.site, HEADERS=self.headers)
         getcontext().prec = 2
         self.curr = Decimal(bs(urlopen(request)).find(id='last_last').text)
         
@@ -378,7 +374,7 @@ class Chooser(QtGui.QWidget):
         pass
           
 class SysTrayIcon(QtGui.QSystemTrayIcon):
-    
+    '''system tray class'''
     def __init__(self, icon, parent=None):
         super(SysTrayIcon, self).__init__()
         self.setIcon(icon)
@@ -450,154 +446,15 @@ class SysTrayIcon(QtGui.QSystemTrayIcon):
         if reply == QtGui.QMessageBox.Yes:
             QtGui.QApplication.quit()
 
-def test_show():
-    i = Investing()
-    titles = ['America', 'Europe', 'Asia']
-    lengths = [1,2,3]
-    last_id = 1
-    lists = [{'title' : "USD/ASD", 'href' : "http://inv.com/usd-asd", 'name' : "US dollar-Aus dollar"},
-             {'title' : "USD/EUR", 'href' : "http://inv.com/usd-eur", 'name' : "US dollar-Euro"},
-             {'title' : "GBP/EUR", 'href' : "http://inv.com/gbp-eur", 'name' : "Pound - Euro"},
-             {'title' : "CHY/EUR", 'href' : "http://inv.com/chy-eur", 'name' : "Chinese Yen - Euro"},
-             {'title' : "CHY/USD", 'href' : "http://inv.com/chy-usd", 'name' : "Chinese Yen - US dollar"},
-             {'title' : "CHY/GBP", 'href' : "http://inv.com/chy-gbp", 'name' : "Chinese Yen - Pound"}]
-    l = i.create_curr_list(titles, lengths, lists, last_id)
-    i.show_curr_list(l)
-    
-def test_db():
-    test_db = [{'id' : 1,
-                'name':"Majors",
-                'content':[
-                           {'id':1, 
-                            'name':"European Euro", 
-                            'content':[
-                                       {'id':1,
-                                        'name':"Pacific",
-                                        'content':[{'name': "AUD/UAH", 
-                                                    'title' : "Australian Dollar Ukrainian Hryvnia",
-                                                    'href' : "http://www.investing.com/currencies/aud-uah"},
-                                                   {'name' : "USD/UAH", 
-                                                    'title' : "US Dollar Ukrainian Hryvnia",
-                                                    'href' : "http://www.investing.com/currencies/usd-uah"}]},
-                                        {'id':2,
-                                        'name':"Central America",
-                                        'content':[{'name' : "UAH/RUB", 
-                                                    'title' : "Ukrainian Hryvnia Russian Ruble", 
-                                                    'href' : "http://www.investing.com/currencies/uah-rub"},
-                                                   {'name':"DKK/UAH",
-                                                    'title' : "Danish Krone Ukrainian Hryvnia",
-                                                    'href' : "http://www.investing.com/currencies/dkk-uah"}]}]},
-                           {'id':2,
-                            'name':"US Dollar",
-                            'content':[
-                                       {'id':3,
-                                        'name':"South America",
-                                        'content':[{'name' : "TRY/OMR",
-                                                    'title' : "Turkish Lira Omani Rial",
-                                                    'href' : "http://www.investing.com/currencies/try-omr"},
-                                                   {'name' : "TRY/BHD",
-                                                    'title' : "Turkish Lira Baharain Dinar",
-                                                    'href' : "http://www.investing.com/currencies/try-bhd"}]}]}]}]
-    
-    d = DataBase(BASE,test_db)
-    d.db_create(SCHEMA)
-    d.add(test_db)
-    
-    
+
 def main():
     app = QtGui.QApplication(sys.argv)
-    app.setQuitOnLastWindowClosed(False)
-    #style = app.style()
+    app.setQuitOnLastWindowClosed(False)    #don't close systray after closing any window
     icon = QtGui.QIcon(MENU)
     trayIcon = SysTrayIcon(icon)
     trayIcon.show()
-    trayIcon.showMessage("Биржа",strftime("%H"+":"+"%M"+":"+"%S"), 1000)
+    trayIcon.shoMessage("Биржа", strftime("%H"+":"+"%M"+":"+"%S"), 1000)
     sys.exit(app.exec_())
 
-def parse_add_show():
-    i = Investing()
-    i.browser_start()
-    print("VIRTUAL DISPLAY - ON")
-    print("VIRTUAL BROWSER - ON")
-    i.parse_init(URL_CURR)
-    print("PARSER STARTED")
-    try:
-        i.parse_continents_hor()
-    except:
-        i.browser_stop()
-        print("!!!PARSING WENT WRONG!!!")
-        sys.exit()
-    finally:
-        print("PARSER FINISHED")
-        sleep(3)
-    
-    print("CREATING DATABASE STARTED")
-    sleep(3)
-    try:
-        d = DataBase(BASE)
-        d.db_create(SCHEMA)
-        d.add(i.main_list)
-    except:
-        print("!!!CREATING DATABASE WENT WRONG!!!")
-        sys.exit()
-    finally:
-        print("DATABASE CREATED")
-        sleep(3)
-        
-    l = d.db_load()
-    i = Investing(l)
-    i.show()
-    print("DONE")
-    
-def parse():
-    start = time()
-    i = Investing()
-    i.browser_start()
-    i.parse_init(URL_CURR)
-    try:
-        i.parse_continents_hor()
-        i.show()
-    except:
-        i.browser_stop()
-        print("Something WENT WRONG")
-    
-    d = DataBase(BASE, i.main_list)
-    d.db_create()
-    d.add()
-    
-    print(time()-start, " seconds passed for execution")
-    
-def test_pars():
-    url = "http://www.investing.com/currencies/"
-    request = Request(url, headers=headers)
-    s = urlopen(request)
-    sitePath = s.read()
-    parser = etree.HTMLParser()
-    tree = etree.fromstring(sitePath, parser)
-    for elem in tree.xpath('//*[@id="filterBoxExpTabsTop"]'):
-        for i in elem:
-            text = i.getchildren()[0].text
-            elem_id = i.attrib['id']
-            print(text, elem_id)
-    print("DOne")
-    #//*[@id="filterBoxExpTabsTop"]
-    
-def test_load():
-    d = DataBase(BASE)
-    d.db_load()
-    l = d.db_load()
-    i = Investing(l)
-    i.show()
-
-def test_add_currency():
-    pass
-
 if __name__ == "__main__":
-    #test()
-    #main()
-    #parse()
-    #test_load()
-    #test_pars()
-    #test_db()
-    parse_add_show()
-    
+    main()

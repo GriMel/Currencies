@@ -37,7 +37,7 @@ class Economic():
         self.change = None
     
     def get_value(self):
-        request = Request(self.site, headers=self.headers)
+        request = Request(self.site, HEADERS=self.headers)
         getcontext().prec = 2
         self.curr = Decimal(bs(urlopen(request)).find(id='last_last').text)
     
