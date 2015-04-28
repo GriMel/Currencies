@@ -19,10 +19,13 @@ import webbrowser
 from urllib.parse import urlparse
 import sqlite3
 from os import path
+
 #-------------default lines in systray-----------------------
 MAS = ["http://www.investing.com/currencies/eur-rub",       #eur-rub
        "http://www.investing.com/currencies/usd-rub",       #usd-rub
        "http://www.investing.com/commodities/brent-oil"]    #brent
+
+MAS_temp = [{'id':'426', 'href':'http://www.investing.com/currencies/eur-rub', 'title':'Euro Russian Ruble'},{},{}]
 #-------------icons for system tray--------------------------
 DOWN = "src/down.png"
 UP = "src/up.png"
@@ -46,6 +49,10 @@ def site_on():
     except URLError as err: pass
     return False
 
+def create_request(url):
+    request = Request(url, headers=HEADERS)
+    s = urlopen(request)
+    return s
 
 class Investing():
     '''class for parsing site to one array'''
@@ -58,7 +65,7 @@ class Investing():
         self.display.start()                                #start virtual display
         self.browser = webdriver.Firefox()                  #start browser
         self.browser.get(URL_CURR)                          #go to URL_CURR
-        
+    
     def browser_stop(self):
         '''close display and browser'''
         self.browser.close()
@@ -71,93 +78,100 @@ class Investing():
         
     def parse_init(self, url):
         '''init parser'''
-        request = Request(url, HEADERS=HEADERS)
+        request = Request(url, headers=HEADERS)
         s = urlopen(request)
-        sitePath = s.read()
+        pageContent = s.read()
         parser = etree.HTMLParser()
-        self.tree = etree.fromstring(sitePath, parser)
+        self.tree = etree.fromstring(pageContent, parser)
+        
         self.last_id = 1
         self.continent_id = 1
         self.currency_id = 1
                 
     def parse_curr(self, soup):
+        '''parsing currency in vertical line'''
         tableClass = "inlineblock alignTop curExpCol"
         titleClass = "curTitle inlineblock bold"
         lengths = []
         titles = []
         lists = []
         
-        #getting count for every zone
+            #name of every zone
+        for t in soup.findAll("span", {"class":titleClass}):
+            assert t.text, "title is Empty"
+            titles.append(t.text)
+        
         for i in soup.findAll("span", {"class":tableClass}):
+            #rate for every zone
             for ul in i.findAll('ul'):
                 lengths.append(len(ul.findAll('li')))
-        
-        #getting names of every zone
-        for i in soup.findAll("span", {"class":titleClass}):
-            titles.append(i.text)
-        
-        #getting Rate USD/ASD, href, and  Full Name - Austrian Dollars
-        for i in soup.findAll("span", {"class" : tableClass}):
+            
+            #rate title: USD/AUD, href: "http://..", title:US Dollar Austrian Dollar
             for j in i.select('li > a'):
                 href = j.get('href')
                 title = j.get('title')
                 name = j.text
-                dr = {'title' : title, 'href' : href, 'name' : name}
+                assert isinstance(name, str), 'name is not str'
+                assert href, 'href is Empty'
+                assert title, 'title is Empty'
+                dr = {'title' : title,
+                      'href' : href,
+                      'name' : name}
                 lists.append(dr)
-        
+                
         l = self.create_curr_list(titles, lengths, lists)
         return l
         
     def create_curr_list(self, titles, lengths, lists):
+        '''creating rates list for every currency'''
         last_id = self.last_id
         rates_list = []
         i = 0
         try:
-            for zone in titles:
-                print(zone)
+            for z_name in titles:
+                print(z_name)
                 zone_list = []
-                num = titles.index(zone)
+                num = titles.index(z_name)
                 j = lengths[num]
                 z_id = last_id + num
                 
                 for c in range(i, i + j):
                     zone_list.append(lists[c])
                     print(lists[c])
-                rates_list.append({'id' : z_id,'name':zone, 'content' : zone_list})
+                rates_list.append({'id' : z_id,
+                                   'name':z_name,
+                                   'content' : zone_list})
                 i += j
         except:
-            print("|")
+            print("Damn exception")
         
         self.last_id = z_id +1
         assert rates_list    
         return rates_list
-    
-    def show_curr_list(self, l):
-        for elem in l:
-            print("id - {}, zone - {}".format(elem.get('id'), elem.get('name')))
-            for curr in elem.get('content'):
-                print("'name' : \"{}\", 'title' : \"{}\", href : \"{}\"".format(curr.get('name'), curr.get('title'), curr.get('href')))
                 
     def parse_continents_hor(self):
+        '''parsing continents line (horizontal line)'''
+        horTab = '//*[@id="filterBoxExpTabsTop"]' #/html/body/div[7]/section/div[4]/div[1]/ul
         self.main_list = []
-        for elem in self.tree.xpath('//*[@id="filterBoxExpTabsTop"]'):
-            #/html/body/div[7]/section/div[4]/div[1]/ul
+        for elem in self.tree.xpath(horTab):
             for i in elem:
                 name = i.getchildren()[0].text
                 elem_id = i.attrib['id']
                 self.browser_click(elem_id)
                 continent_id = self.continent_id
-                self.main_list.append({'id':continent_id, 'name':name, 'content':self.parse_currencies_ver()})
+                self.main_list.append({'id':continent_id, 
+                                       'name':name, 
+                                       'content':self.parse_currencies_ver()})
                 self.continent_id+=1
                 
     def parse_currencies_ver(self):
+        '''parsing currencies list (vertical line)'''
+        verTab = '//*[@id="filterBoxTable"]' #/html/body/div[7]/section/div[4]/div[3]/div/div[1]
         currs_list = []
         parser = etree.HTMLParser()
-        sitePath = self.browser.page_source
-        tree = etree.fromstring(sitePath, parser)
-        for elem in tree.xpath('//*[@id="filterBoxTable"]'):
-            #//*[@id="filterBoxTable"]
-            #/html/body/div[7]/section/div[4]/div[3]/div/div[1]
+        pageContent = self.browser.page_source
+        tree = etree.fromstring(pageContent, parser)
+        for elem in tree.xpath(verTab):
             for i in elem:
                 name = i.getchildren()[1].text
                 elem_id = i.attrib['id']
@@ -166,22 +180,35 @@ class Investing():
                 currency_id = self.currency_id
                 currs_list.append({'id':currency_id, 'name':name, 'content':self.parse_curr(soup)}) #'US Dollar' : []
                 self.currency_id +=1 
-        return currs_list
+        return currs_list    
     
     def show(self):
+        '''test - show created list'''
         for continent in self.main_list:
-            print("'id':{}, 'name' : {}".format(continent.get('id'), continent.get('name')))
+            print("'id':{}, 'name' : {}".format(continent.get('id'),
+                                                continent.get('name')))
             for currency in continent.get('content'):
-                print("'id':{}, 'name' {}".format(currency.get('id'), currency.get('name')))
-                rates = currency.get('content')
-                self.show_curr_list(rates)         
+                print("'id':{}, 'name' {}".format(currency.get('id'),
+                                                  currency.get('name')))
+                zones = currency.get('content')
+                for zone in zones:
+                    print("'id': {}, 'name': {}".format(zone.get('id'),
+                                                        zone.get('name')))
+                    rates = zone.get('content')
+                    for rate in rates:
+                        print("'id': {}, 'title': {}, 'name' : {}, 'href' : {}".format(rate.get('id'), 
+                                                                                       rate.get('title'), 
+                                                                                       rate.get('name'), 
+                                                                                       rate.get('href')))         
                 
 class DataBase():
     
     def __init__(self, name):
+        '''empty base with name'''
         self.name = name
     
-    def db_create(self, schema):
+    def create(self, schema):
+        '''create empty base with schema'''
         self.schema = schema
         dbIsNew = not path.exists(self.name)
         self.conn = sqlite3.connect(self.name)
@@ -197,41 +224,47 @@ class DataBase():
         self.conn.commit()
     
     def add(self, db):
+        '''add list from Investing to database'''
+        assert db, 'empty list given'
         self.db = db
         with sqlite3.connect(self.name) as conn:
             cur = conn.cursor()
-            
             for continent in self.db:
-                cur.execute('INSERT INTO Continents VALUES(?,?)',
-                            (continent.get('id'), continent.get('name')))
-                #print("id:{}, {}".format(continent.get('id'), continent.get('name')))
+                cur.execute('INSERT INTO Continents VALUES(?,?)', (continent.get('id'),
+                                                                   continent.get('name')))
                 currencies = continent.get('content')
                 for currency in currencies:
-                    cur.execute('INSERT INTO Currencies VALUES(?,?,?)',
-                                 (currency.get('id'), currency.get('name'), continent.get('id')))
-                    print("id:{}, {}".format(currency.get('id'), currency.get('name')))
+                    cur.execute('INSERT INTO Currencies VALUES(?,?,?)', (currency.get('id'),
+                                                                         currency.get('name'),
+                                                                         continent.get('id')))
                     zones = currency.get('content')
                     for zone in zones:
-                        print(zone.get('id'), " zone id")
-                        cur.execute('INSERT INTO Zones VALUES (?,?,?,?)',
-                                    (zone.get('id'), zone.get('name'), continent.get('id'), currency.get('id')))
+                        cur.execute('INSERT INTO Zones VALUES (?,?,?,?)', (zone.get('id'),
+                                                                           zone.get('name'),
+                                                                           continent.get('id'),
+                                                                           currency.get('id')))
                         rates = zone.get('content')
                         for rate in rates:
-                            print(rate)
-                            print(rate.get('id'))
-                            cur.execute('INSERT INTO Rates VALUES (?,?,?,?,?,?,?)',
-                                         (rate.get('id'), rate.get('name'), rate.get('title'), rate.get('href'), continent.get('id'), currency.get('id'), zone.get('id')))
+                            cur.execute('INSERT INTO Rates VALUES (?,?,?,?,?,?,?)', (rate.get('id'),
+                                                                                     rate.get('name'),
+                                                                                     rate.get('title'),
+                                                                                     rate.get('href'),
+                                                                                     continent.get('id'),
+                                                                                     currency.get('id'),
+                                                                                     zone.get('id')))
             conn.commit()
-            print("made commit")
-    def db_load(self):
+
+    def load(self):
+        '''load from existing database to list'''
         self.db = []
         with sqlite3.connect(self.name) as conn:
             cursor = conn.cursor()
             continents = cursor.execute("SELECT * FROM Continents").fetchall()
-            rates = cursor.execute("SELECT * FROM Rates").fetchall()
             for continent in continents:
                 co_id, co_n = continent[0], continent[1]
-                self.db.append({'id' : co_id, 'name': co_n, 'content':[]})
+                self.db.append({'id' : co_id,
+                                'name': co_n,
+                                'content':[]})
                 currencies = cursor.execute("SELECT * FROM Currencies WHERE ContinentId = ?", (co_id,)).fetchall()
                 for currency in currencies:
                     cur_id, cur_n = currency[0], currency[1]
@@ -252,7 +285,6 @@ class Economic():
     '''class for manipulating with concrete currency'''
     def __init__(self, site):
         
-        self.headers = {"User-Agent":"Mozilla/5.0 (X11; U; Linux i686) Gecko/20071127 Firefox/2.0.0.11"}
         self.site = site
         self.name = self.get_name()
         self.prev = None
@@ -269,11 +301,13 @@ class Economic():
         return name.upper()
     
     def get_value(self):
-        request = Request(self.site, HEADERS=self.headers)
+        request = Request(self.site, headers=HEADERS)
+        
         getcontext().prec = 2
         self.curr = Decimal(bs(urlopen(request)).find(id='last_last').text)
         
     def changed(self):
+        '''check if changed'''
         if not self.prev or self.prev == self.curr:
             self.change = "="
         elif self.curr > self.prev:
@@ -283,6 +317,7 @@ class Economic():
         self.prev = self.curr
     
     def return_string(self):
+        '''return proper string'''
         try:
             self.get_value()
             self.changed()
@@ -291,13 +326,18 @@ class Economic():
         return "{:7.3f}   {}".format(self.curr, self.name)
 
 class Chooser(QtGui.QWidget):
-    
+    '''Widget - analogue to currency page view'''
     def __init__(self, db, parent=None):
         super(Chooser, self).__init__()
         self.db = db
         self.setupUI()
+        self.place_center()
         self.translateUI()
-        
+    
+    def place_center(self):
+        center_coord = []
+        #place in the middle of the screen
+    
     def setupUI(self):
         self.setObjectName("Chooser")
         self.tabWidget = QtGui.QTabWidget(self)
@@ -325,7 +365,7 @@ class Chooser(QtGui.QWidget):
         self.tabWidget.adjustSize()
         
     def update_grid(self):
-        
+        '''update grid of currencies with zone titles'''
         widget = self.tabWidget.currentWidget()
         hor = self.tabWidget.currentIndex()
         ver = self.sender().currentIndex()
@@ -344,6 +384,7 @@ class Chooser(QtGui.QWidget):
         layout.addLayout(grid_new)
         
     def fill_grid(self, hor, ver, zones):
+        '''creating grid'''
         grid_new = QtGui.QGridLayout()
         row = 0
         col = 0
@@ -356,18 +397,25 @@ class Chooser(QtGui.QWidget):
                 row += 1
                 r_name = rate['name']
                 r_href = rate['href']
-                print(r_href)
+                #print(r_href)
                 r_title = rate['title']
                 btn = QtGui.QPushButton(r_name)
                 btn.setToolTip(r_title)
                 btn.setObjectName(r_href)
-                btn.clicked.connect(self.go_site)
+                btn.clicked.connect(self.add_rate)
                 grid_new.addWidget(btn, row, col, 1, 1)
             row = 0
             col +=1
         return grid_new
     
+    def add_rate(self):
+        name = self.sender().text()
+        title = self.sender().toolTip()
+        href = self.sender().objectName()
+        print(name, title, href)
+        
     def go_site(self):
+        '''click button of rate'''
         webbrowser.open(self.sender().objectName())
         
     def translateUI(self):
@@ -387,6 +435,12 @@ class SysTrayIcon(QtGui.QSystemTrayIcon):
         self.menu.addAction(self.time)
         self.menu.addSeparator()
         
+        self.update = QtGui.QAction(self)
+        self.update.triggered.connect(self.add_currency)
+        self.update.setIconText("Add currency")
+        self.menu.addAction(self.update)
+        self.menu.addSeparator()
+        
         self.exitAction = QtGui.QWidgetAction(self)
         self.exitAction.setIcon(QtGui.QIcon(EXIT))
         self.exitAction.setIconText("Exit")
@@ -399,7 +453,7 @@ class SysTrayIcon(QtGui.QSystemTrayIcon):
         self.activated.connect(self.handle_click)
         
     def handle_click(self, reason):
-        
+        '''correct right click in Windows'''
         if reason == QtGui.QSystemTrayIcon.MiddleClick:
             self.closeEvent()
         elif reason == QtGui.QSystemTrayIcon.Trigger:
@@ -419,9 +473,11 @@ class SysTrayIcon(QtGui.QSystemTrayIcon):
             action.setObjectName(s)
             action.triggered.connect(self.open_site)
             self.menu.addAction(action)
-            
+           
+ 
     def loop(self):
-        if self.timer.isActive(): self.timer.stop()
+        '''infinite loop until app closed'''
+        if self.timer.isActive(): self.timer.stop()                 #preventing earlier timer
         for c, w in zip(self.a, self.menu.actions()):
             value = c.return_string()
             if not value: continue
@@ -435,11 +491,14 @@ class SysTrayIcon(QtGui.QSystemTrayIcon):
                 w.setIcon(QtGui.QIcon(DOWN))
         self.time.setText(strftime("%H"+":"+"%M"+":"+"%S"))
         self.timer.start(UPDATE_TIME)
-        
+    
+    def add_currency(self):
+        pass
     def open_site(self):
         webbrowser.open(self.sender().objectName())
         
     def closeEvent(self):
+        '''make sure if really wanna quit'''
         q = QtGui.QWidget()
         q.setWindowIcon(QtGui.QIcon(EXIT))
         reply = QtGui.QMessageBox.question(q, 'Message', 'Are you sure to quit?', QtGui.QMessageBox.Yes | QtGui.QMessageBox.No, QtGui.QMessageBox.No)
@@ -453,8 +512,17 @@ def main():
     icon = QtGui.QIcon(MENU)
     trayIcon = SysTrayIcon(icon)
     trayIcon.show()
-    trayIcon.shoMessage("Биржа", strftime("%H"+":"+"%M"+":"+"%S"), 1000)
+    trayIcon.showMessage("Биржа", strftime("%H"+":"+"%M"+":"+"%S"), 1000)
     sys.exit(app.exec_())
 
+def test_chooser():
+    d = DataBase(BASE)
+    l = d.load()
+    app = QtGui.QApplication(sys.argv)
+    c = Chooser(l)
+    c.show()
+    sys.exit(app.exec_())
+    
 if __name__ == "__main__":
-    main()
+    #main()
+    test_chooser()
