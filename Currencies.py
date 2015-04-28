@@ -11,6 +11,7 @@ from selenium import webdriver
 
 
 from PyQt4 import QtGui, QtCore
+from PyQt4.QtCore import pyqtSignal
 #from colorama import Fore, Back, Style, init
 #from os.path import isfile
 
@@ -20,12 +21,16 @@ from urllib.parse import urlparse
 import sqlite3
 from os import path
 
-#-------------default lines in systray-----------------------
-MAS = ["http://www.investing.com/currencies/eur-rub",       #eur-rub
-       "http://www.investing.com/currencies/usd-rub",       #usd-rub
-       "http://www.investing.com/commodities/brent-oil"]    #brent
 
-MAS_temp = [{'id':'426', 'href':'http://www.investing.com/currencies/eur-rub', 'title':'Euro Russian Ruble'},{},{}]
+MAS = [{'href':"http://www.investing.com/currencies/eur-rub",
+             'title':"Euro Russian Ruble", 
+             'name':"EUR/RUB"},
+            {'href':"http://www.investing.com/currencies/usd-rub",
+             'title':'US Dollar Russian Ruble',
+             'name':"USD/RUB"},
+            {'href':"http://www.investing.com/commodities/brent-oil",
+             'title':'brent-oil',
+             'name':'Brent-Oil'}]
 #-------------icons for system tray--------------------------
 DOWN = "src/down.png"
 UP = "src/up.png"
@@ -281,55 +286,53 @@ class DataBase():
         return self.db
   
 #last_last - css selector
+
 class Economic():
-    '''class for manipulating with concrete currency'''
-    def __init__(self, site):
-        
-        self.site = site
-        self.name = self.get_name()
-        self.prev = None
-        self.curr = None
-        self.currange = None
+    
+    def __init__(self, l):
+        self.name = l['name']
+        self.title = l['title']
+        self.href = l['href']
+        self.previous = None
+        self.current = None
         self.change = None
-    
-    def get_name(self):
-        '''
-        pattern = "/(\w+)"
-        name = re.findall(pattern, self.site)[2].upper()
-        '''
-        name = urlparse(self.site).path.split('/')[2].strip('-oil')
-        return name.upper()
-    
-    def get_value(self):
-        request = Request(self.site, headers=HEADERS)
+        self.value = self._string()
         
+               
+    def _get_current(self):
+        '''get current value'''
+        request = Request(self.href, headers=HEADERS)
         getcontext().prec = 2
-        self.curr = Decimal(bs(urlopen(request)).find(id='last_last').text)
+        value = bs(urlopen(request)).find(id='last_last').text
+        self.current = Decimal(value)
         
-    def changed(self):
-        '''check if changed'''
-        if not self.prev or self.prev == self.curr:
-            self.change = "="
-        elif self.curr > self.prev:
-            self.change = "↑"
-        else: 
-            self.change = "↓"
-        self.prev = self.curr
-    
-    def return_string(self):
-        '''return proper string'''
+    def _string(self):
+        '''value for action'''
         try:
-            self.get_value()
-            self.changed()
+            self._get_current()
+            self._changed()
         except:
             return None
-        return "{:7.3f}   {}".format(self.curr, self.name)
+        return "{:7.3f}    {}".format(self.current, self.name)
+    
+    def _changed(self):
+        '''check if chandged'''
+        if not self.previous or self.previous == self.current:
+            self.change = "="
+        elif self.current > self.previous:
+            self.change = "↑"
+        else:
+            self.change = "↓"
+        self.previous = self.current
 
-class Chooser(QtGui.QWidget):
-    '''Widget - analogue to currency page view'''
+class Chooser(QtGui.QWidget):#
+    '''Widget - analogue to currency page view '''
+    p = pyqtSignal()                                #IMPORTANT - not inside constructor 
     def __init__(self, db, parent=None):
         super(Chooser, self).__init__()
         self.db = db
+        
+        self.picked = None
         self.setupUI()
         self.place_center()
         self.translateUI()
@@ -341,13 +344,15 @@ class Chooser(QtGui.QWidget):
     def setupUI(self):
         self.setObjectName("Chooser")
         self.tabWidget = QtGui.QTabWidget(self)
+        
         for hor, continent in enumerate(self.db):
             tab = QtGui.QScrollArea()
             con_widget = QtGui.QWidget()
             tab.setWidget(con_widget)
             con_name = continent['name']
             tbox_widget = QtGui.QToolBox()
-            tbox_widget.currentChanged.connect(self.update_grid)
+            
+            
             currencies = continent.get('content')
             for ver, currency in enumerate(currencies):
                 cur_name = currency.get('name')
@@ -355,33 +360,54 @@ class Chooser(QtGui.QWidget):
                 tbox_widget.addItem(cur_widget, cur_name)
                 zones = currency['content']
                 grid_layout = self.fill_grid(hor, ver, zones)
+            tbox_widget.setFixedHeight(tbox_widget.sizeHint().height())
+            tbox_widget.setFixedWidth(tbox_widget.sizeHint().width())
+            tbox_widget.currentChanged.connect(self.update_grid)
             
-
             hor_layout = QtGui.QHBoxLayout(con_widget)
-            hor_layout.addWidget(tbox_widget)
-            hor_layout.addLayout(grid_layout)
+            
+            ver_layout1 = QtGui.QVBoxLayout()
+            ver_layout1.addWidget(tbox_widget)
+            ver_layout1.addStretch(1)
+            
+            ver_layout2 = QtGui.QVBoxLayout()
+            ver_layout2.addLayout(grid_layout)
+            ver_layout2.addStretch(1)
+            
+            hor_layout.addLayout(ver_layout1)
+            hor_layout.addLayout(ver_layout2)
             tab.setWidgetResizable(True)
             self.tabWidget.addTab(tab, con_name)
+            
         self.tabWidget.adjustSize()
+        self.lay = QtGui.QVBoxLayout()
+        self.up_but = QtGui.QPushButton("Update")
+        self.lay.addWidget(self.tabWidget)
+        self.lay.addWidget(self.up_but)
+        self.setLayout(self.lay)
         
     def update_grid(self):
         '''update grid of currencies with zone titles'''
         widget = self.tabWidget.currentWidget().widget()
         hor = self.tabWidget.currentIndex()
         ver = self.sender().currentIndex()
-        
         db = self.db
         zones = db[hor]['content'][ver]['content']
         grid_new = self.fill_grid(hor, ver, zones)
-        layout = widget.layout()
-        grid_old = layout.itemAt(1)
+        
+        v_layout = widget.layout().itemAt(1)
+        grid_old = v_layout.itemAt(0)
+        stretch = v_layout.itemAt(1)
         
         while grid_old.count():
             item = grid_old.takeAt(0)
             widget = item.widget()
             widget.deleteLater()
-        layout.removeItem(grid_old)
-        layout.addLayout(grid_new)
+        
+        v_layout.removeItem(grid_old)
+        v_layout.removeItem(stretch)
+        v_layout.addLayout(grid_new)
+        v_layout.addStretch(1)
         
     def fill_grid(self, hor, ver, zones):
         '''creating grid'''
@@ -406,13 +432,16 @@ class Chooser(QtGui.QWidget):
                 grid_new.addWidget(btn, row, col, 1, 1)
             row = 0
             col +=1
+        
         return grid_new
     
     def add_rate(self):
         name = self.sender().text()
         title = self.sender().toolTip()
         href = self.sender().objectName()
-        print(name, title, href)
+        print("{}-name. {}-title, {}-href".format(name, title, href))
+        self.picked =  Economic({'href':href, 'title':title, 'name':name})
+        self.p.emit()
         
     def go_site(self):
         '''click button of rate'''
@@ -464,39 +493,54 @@ class SysTrayIcon(QtGui.QSystemTrayIcon):
             pos = QtCore.QPoint(x, y)
             self.contextMenu().move(pos)
             self.contextMenu().show()
-            
-    def init_list(self):
+    
+    def addNewAction(self, i):
+        print("Got it")
+        self.a.append(i)
+        action = QtGui.QAction(self)
+        action.setObjectName(i.href)
+        action.setText(i.value)
+        action.setToolTip(i.title)
+        old = self.menu.actions()[3]
+        self.menu.insertAction(old, action)
+        self.loop()
+        
+    def init_list(self):            
         self.a = [Economic(i) for i in MAS]
-        site = [i for i in MAS]
-        for _, s in zip(self.a, site):
+        
+        for i in self.a:
             action = QtGui.QAction(self)
-            action.setObjectName(s)
-            action.triggered.connect(self.open_site)
+            action.setObjectName(i.href)
+            action.setText(i.value)
+            action.setToolTip(i.title)
             self.menu.addAction(action)
-           
  
     def loop(self):
         '''infinite loop until app closed'''
         if self.timer.isActive(): self.timer.stop()                 #preventing earlier timer
         for c, w in zip(self.a, self.menu.actions()):
-            value = c.return_string()
+            value = c._string()
             if not value: continue
             w.setText(value)
             if c.change == "=":
-                #w.setIcon(QtGui.QIcon.fromTheme("face-smirk"))
-                w.setIcon(QtGui.QIcon(EQUAL))
+                w.setIcon(QtGui.QIcon(EQUAL))   #w.setIcon(QtGui.QIcon.fromTheme("face-smirk"))
             elif c.change == "↑":
                 w.setIcon(QtGui.QIcon(UP))
             else:
                 w.setIcon(QtGui.QIcon(DOWN))
         self.time.setText(strftime("%H"+":"+"%M"+":"+"%S"))
         self.timer.start(UPDATE_TIME)
-    
+        
     def add_currency(self):
-        pass
+        d = DataBase(BASE)
+        l = d.load()
+        self.c = Chooser(l)
+        self.c.p.connect(lambda:self.addNewAction(self.c.picked))
+        self.c.show()
+        
     def open_site(self):
         webbrowser.open(self.sender().objectName())
-        
+         
     def closeEvent(self):
         '''make sure if really wanna quit'''
         q = QtGui.QWidget()
@@ -504,7 +548,6 @@ class SysTrayIcon(QtGui.QSystemTrayIcon):
         reply = QtGui.QMessageBox.question(q, 'Message', 'Are you sure to quit?', QtGui.QMessageBox.Yes | QtGui.QMessageBox.No, QtGui.QMessageBox.No)
         if reply == QtGui.QMessageBox.Yes:
             QtGui.QApplication.quit()
-
 
 def main():
     app = QtGui.QApplication(sys.argv)
@@ -524,5 +567,5 @@ def test_chooser():
     sys.exit(app.exec_())
     
 if __name__ == "__main__":
-    #main()
-    test_chooser()
+    main()
+    #test_chooser()
