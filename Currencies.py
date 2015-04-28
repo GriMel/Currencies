@@ -341,10 +341,10 @@ class Chooser(QtGui.QWidget):
     def setupUI(self):
         self.setObjectName("Chooser")
         self.tabWidget = QtGui.QTabWidget(self)
-        
         for hor, continent in enumerate(self.db):
-            
+            tab = QtGui.QScrollArea()
             con_widget = QtGui.QWidget()
+            tab.setWidget(con_widget)
             con_name = continent['name']
             tbox_widget = QtGui.QToolBox()
             tbox_widget.currentChanged.connect(self.update_grid)
@@ -360,13 +360,13 @@ class Chooser(QtGui.QWidget):
             hor_layout = QtGui.QHBoxLayout(con_widget)
             hor_layout.addWidget(tbox_widget)
             hor_layout.addLayout(grid_layout)
-            
-            self.tabWidget.addTab(con_widget, con_name)
+            tab.setWidgetResizable(True)
+            self.tabWidget.addTab(tab, con_name)
         self.tabWidget.adjustSize()
         
     def update_grid(self):
         '''update grid of currencies with zone titles'''
-        widget = self.tabWidget.currentWidget()
+        widget = self.tabWidget.currentWidget().widget()
         hor = self.tabWidget.currentIndex()
         ver = self.sender().currentIndex()
         
