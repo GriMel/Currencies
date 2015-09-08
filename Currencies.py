@@ -1,5 +1,6 @@
 #! python
 #-*-coding:utf-8-*-
+
 from bs4 import BeautifulSoup as bs
 from urllib.request import urlopen, Request
 from urllib.error import URLError
@@ -12,8 +13,7 @@ from selenium import webdriver
 
 from PyQt4 import QtGui, QtCore
 from PyQt4.QtCore import pyqtSignal
-#from colorama import Fore, Back, Style, init
-#from os.path import isfile
+
 
 import sys
 import webbrowser
@@ -37,7 +37,7 @@ UP = "src/up.png"
 EQUAL = "src/equal.png"
 EXIT = "src/exit.png"
 MENU = "src/exchange.png"
-#-------------time for update 30 seconds * 1000 milliseconds-
+#-------------time for update 30 seconds * 1000
 UPDATE_TIME = 30000 
 #-------------FOR PARSING INVESTING.COM----------------------
 URL_COMMO = "http://www.investing.com/commodities/"
@@ -57,44 +57,69 @@ def site_on():
 def create_request(url):
     request = Request(url, headers=HEADERS)
     s = urlopen(request)
-    return s
+    return s 
+
 
 class Investing():
     '''class for parsing site to one array'''
     def __init__(self, l=None):
         self.main_list = l
         
-    def browser_start(self):
+    def browserStart(self):
         '''start display and browser'''
         self.display = Display(visible=0, size=(800, 600))  #virtual display
         self.display.start()                                #start virtual display
         self.browser = webdriver.Firefox()                  #start browser
         self.browser.get(URL_CURR)                          #go to URL_CURR
     
-    def browser_stop(self):
+    def browserStop(self):
         '''close display and browser'''
         self.browser.close()
         self.display.stop()
         
-    def browser_click(self, el_id):
-        '''handle click'''
-        element = self.browser.find_element_by_id(el_id)
-        element.click()
+    def browserClick(self, el_id):
+        '''handle click'''                                  
+        element = self.browser.find_element_by_id(el_id)    
+        element.click()                                     #click and open new page
         
-    def parse_init(self, url):
+    def parserInit(self, url):
         '''init parser'''
-        request = Request(url, headers=HEADERS)
-        s = urlopen(request)
+        s = create_request(url)
         pageContent = s.read()
         parser = etree.HTMLParser()
         self.tree = etree.fromstring(pageContent, parser)
-        
         self.last_id = 1
         self.continent_id = 1
         self.currency_id = 1
-                
-    def parse_curr(self, soup):
-        '''parsing currency in vertical line'''
+    
+    def createRatesList(self, titles, lengths, lists):
+        '''creating rates list for every currency'''
+        last_id = self.last_id
+        rates_list = []
+        i = 0
+        try:
+            for index, zone_name in enumerate(titles):      #for every zone we have a structure
+                print(zone_name)                            #Zone_name
+                zone_list = []                              #Currency1
+                j = lengths[index]                          #Currency2
+                zone_id = last_id + index                   #CurrencyN
+                                                            #
+                for c in range(i, i+j):                     #titles store titles of zone
+                    zone_list.append(lists[c])              #lengths store count of currencies
+                    print(lists[c])                         #lists store information about rates
+                rates_list.append({'id':zone_id,            #for every zone we create zone_name and zone_list
+                                   'name':zone_name,        #
+                                   'content':zone_list})    #
+                i += j
+        except:
+            print(sys.exc_info())
+            
+        self.last_id = zone_id +1
+        assert rates_list    
+        return rates_list
+         
+    def parseCurr(self, soup):
+        '''parsing every currency for zone/rates'''
         tableClass = "inlineblock alignTop curExpCol"
         titleClass = "curTitle inlineblock bold"
         lengths = []
@@ -124,53 +149,11 @@ class Investing():
                       'name' : name}
                 lists.append(dr)
                 
-        l = self.create_curr_list(titles, lengths, lists)
+        l = self.createRatesList(titles, lengths, lists)
         return l
-        
-    def create_curr_list(self, titles, lengths, lists):
-        '''creating rates list for every currency'''
-        last_id = self.last_id
-        rates_list = []
-        i = 0
-        try:
-            for z_name in titles:
-                print(z_name)
-                zone_list = []
-                num = titles.index(z_name)
-                j = lengths[num]
-                z_id = last_id + num
                 
-                for c in range(i, i + j):
-                    zone_list.append(lists[c])
-                    print(lists[c])
-                rates_list.append({'id' : z_id,
-                                   'name':z_name,
-                                   'content' : zone_list})
-                i += j
-        except:
-            print("Damn exception")
-        
-        self.last_id = z_id +1
-        assert rates_list    
-        return rates_list
-                
-    def parse_continents_hor(self):
-        '''parsing continents line (horizontal line)'''
-        horTab = '//*[@id="filterBoxExpTabsTop"]' #/html/body/div[7]/section/div[4]/div[1]/ul
-        self.main_list = []
-        for elem in self.tree.xpath(horTab):
-            for i in elem:
-                name = i.getchildren()[0].text
-                elem_id = i.attrib['id']
-                self.browser_click(elem_id)
-                continent_id = self.continent_id
-                self.main_list.append({'id':continent_id, 
-                                       'name':name, 
-                                       'content':self.parse_currencies_ver()})
-                self.continent_id+=1
-                
-    def parse_currencies_ver(self):
-        '''parsing currencies list (vertical line)'''
+    def parseCurrVer(self):
+        '''parsing currencies in vertical line'''
         verTab = '//*[@id="filterBoxTable"]' #/html/body/div[7]/section/div[4]/div[3]/div/div[1]
         currs_list = []
         parser = etree.HTMLParser()
@@ -180,12 +163,27 @@ class Investing():
             for i in elem:
                 name = i.getchildren()[1].text
                 elem_id = i.attrib['id']
-                self.browser_click(elem_id)
+                self.browserClick(elem_id)
                 soup = bs(self.browser.page_source)
                 currency_id = self.currency_id
-                currs_list.append({'id':currency_id, 'name':name, 'content':self.parse_curr(soup)}) #'US Dollar' : []
+                currs_list.append({'id':currency_id, 'name':name, 'content':self.parseCurr(soup)}) #'US Dollar' : []
                 self.currency_id +=1 
-        return currs_list    
+        return currs_list
+    
+    def parseMain(self):
+        '''parsing continents line (horizontal line) - main parser'''
+        horTab = '//*[@id="filterBoxExpTabsTop"]' #/html/body/div[7]/section/div[4]/div[1]/ul
+        self.main_list = []
+        for elem in self.tree.xpath(horTab):
+            for i in elem:
+                name = i.getchildren()[0].text
+                elem_id = i.attrib['id']
+                self.browserClick(elem_id)
+                continent_id = self.continent_id
+                self.main_list.append({'id':continent_id, 
+                                       'name':name, 
+                                       'content':self.parseCurrVer()})
+                self.continent_id+=1    
     
     def show(self):
         '''test - show created list'''
@@ -228,6 +226,15 @@ class DataBase():
             print(self.name)
         self.conn.commit()
     
+    def clean(self):
+        
+        with sqlite3.connect(self.name) as conn:
+            conn.execute("DELETE FROM Continents")
+            conn.execute("DELETE FROM Zones")
+            conn.execute("DELETE FROM Currencies")
+            conn.execute("DELETE FROM Rates")
+            conn.commit()
+        
     def add(self, db):
         '''add list from Investing to database'''
         assert db, 'empty list given'
@@ -382,6 +389,7 @@ class Chooser(QtGui.QWidget):#
         self.tabWidget.adjustSize()
         self.lay = QtGui.QVBoxLayout()
         self.up_but = QtGui.QPushButton("Update")
+        self.up_but.clicked.connect(self.update_db)
         self.lay.addWidget(self.tabWidget)
         self.lay.addWidget(self.up_but)
         self.setLayout(self.lay)
@@ -446,10 +454,85 @@ class Chooser(QtGui.QWidget):#
     def go_site(self):
         '''click button of rate'''
         webbrowser.open(self.sender().objectName())
+    
+    def update_db(self):
+        reply = QtGui.QMessageBox.question(self, 'Message', 'Base is empty. Update? (takes 5-10 mins)', 
+                                           QtGui.QMessageBox.Yes | QtGui.QMessageBox.No, 
+                                           QtGui.QMessageBox.No)
+        if reply == QtGui.QMessageBox.Yes:
+            uc = UpdateChooser()
+            self.close()
+            uc.exec_()
         
     def translateUI(self):
         pass
-          
+
+class WorkThread(QtCore.QThread):
+    punched = QtCore.pyqtSignal(str)
+    signal_done = QtCore.pyqtSignal()
+    def __init__(self):
+        super(WorkThread, self).__init__()
+        self.working = True
+    def __del__(self):
+        self.wait()
+        
+    def run(self):
+        i = Investing()
+        self.punched.emit("Created parser")
+        sleep(1)
+        i.browserStart()
+        self.punched.emit("Initiated browser")
+        sleep(1)
+        i.parserInit(URL_CURR)
+        self.punched.emit("...")
+        sleep(1)
+        self.punched.emit("Parser working")
+        i.parseMain()
+        self.punched.emit("Parser finished working")
+        sleep(1)
+        print("Parser finished")
+        d = DataBase(BASE)
+        d.clean()
+        self.punched.emit("Database cleaned")
+        sleep(1)
+        print("Db finished")
+        d.add(i.main_list)
+        self.punched.emit("Created sql base")
+        sleep(1)
+        self.terminate()
+        self.signal_done.emit()
+        c = Chooser(self.d.db)
+        c.exec_()
+
+class UpdateChooser(QtGui.QDialog):
+    
+    def __init__(self):
+        super(UpdateChooser, self).__init__()
+        self.initUI()
+        self.retranslateUI()
+        self.task = WorkThread()
+        self.task.signal_done.connect(self.close)
+        self.startTask()
+        
+    def initUI(self):
+        layout = QtGui.QVBoxLayout()
+        self.label = QtGui.QLabel()
+        self.progressBar = QtGui.QProgressBar()
+        self.progressBar.setRange(0, 0)
+        layout.addWidget(self.label)
+        layout.addWidget(self.progressBar)
+        self.setLayout(layout)
+        
+    def retranslateUI(self):
+        self.label.setText(self.tr("Retrieving data. This can take up for 5-10 minutes"))
+        
+    def startTask(self):
+        self.task.punched.connect(self.onProgress)
+        self.task.start()
+        
+    def onProgress(self, i):
+        self.label.setText(i)
+        
 class SysTrayIcon(QtGui.QSystemTrayIcon):
     '''system tray class'''
     def __init__(self, icon, parent=None):
@@ -493,7 +576,7 @@ class SysTrayIcon(QtGui.QSystemTrayIcon):
             pos = QtCore.QPoint(x, y)
             self.contextMenu().move(pos)
             self.contextMenu().show()
-    
+
     def addNewAction(self, i):
         print("Got it")
         self.a.append(i)
@@ -514,7 +597,7 @@ class SysTrayIcon(QtGui.QSystemTrayIcon):
             action.setText(i.value)
             action.setToolTip(i.title)
             self.menu.addAction(action)
- 
+    
     def loop(self):
         '''infinite loop until app closed'''
         if self.timer.isActive(): self.timer.stop()                 #preventing earlier timer
@@ -565,7 +648,23 @@ def test_chooser():
     c = Chooser(l)
     c.show()
     sys.exit(app.exec_())
+
+def test_asyncio():
+    i = Investing()    
+    i.browserStart()
+    i.parserInit(URL_CURR)
+    i.parse_continents_hor()
+    i.show()
+    i.browserStop()
+
+def test_update():
+    app = QtGui.QApplication(sys.argv)
+    u = UpdateChooser()
+    u.show()
+    sys.exit(app.exec_())
     
 if __name__ == "__main__":
     main()
+    #test_asyncio()
     #test_chooser()
+    #test_update()
