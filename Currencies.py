@@ -332,7 +332,7 @@ class Economic():
             self.change = "↓"
         self.previous = self.current
 
-class Chooser(QtGui.QWidget):#
+class Chooser(QtGui.QDialog):#
     '''Widget - analogue to currency page view '''
     p = pyqtSignal()                                #IMPORTANT - not inside constructor 
     def __init__(self, db, parent=None):
@@ -469,7 +469,7 @@ class Chooser(QtGui.QWidget):#
 
 class WorkThread(QtCore.QThread):
     punched = QtCore.pyqtSignal(str)
-    signal_done = QtCore.pyqtSignal()
+    signal_done = QtCore.pyqtSignal(list)
     def __init__(self):
         super(WorkThread, self).__init__()
         self.working = True
@@ -488,9 +488,46 @@ class WorkThread(QtCore.QThread):
         sleep(1)
         self.punched.emit("Parser working")
         i.parseMain()
+        i.browserStop()
+        test_db = [{'id' : 1,
+                'name':"Majors",
+                'content':[
+                           {'id':1, 
+                            'name':"European Euro", 
+                            'content':[
+                                       {'id':1,
+                                        'name':"Pacific",
+                                        'content':[{'name': "AUD/UAH", 
+                                                    'title' : "Australian Dollar Ukrainian Hryvnia",
+                                                    'href' : "http://www.investing.com/currencies/aud-uah"},
+                                                   {'name' : "USD/UAH", 
+                                                    'title' : "US Dollar Ukrainian Hryvnia",
+                                                    'href' : "http://www.investing.com/currencies/usd-uah"}]},
+                                        {'id':2,
+                                        'name':"Central America",
+                                        'content':[{'name' : "UAH/RUB", 
+                                                    'title' : "Ukrainian Hryvnia Russian Ruble", 
+                                                    'href' : "http://www.investing.com/currencies/uah-rub"},
+                                                   {'name':"DKK/UAH",
+                                                    'title' : "Danish Krone Ukrainian Hryvnia",
+                                                    'href' : "http://www.investing.com/currencies/dkk-uah"}]}]},
+                           {'id':2,
+                            'name':"US Dollar",
+                            'content':[
+                                       {'id':3,
+                                        'name':"South America",
+                                        'content':[{'name' : "TRY/OMR",
+                                                    'title' : "Turkish Lira Omani Rial",
+                                                    'href' : "http://www.investing.com/currencies/try-omr"},
+                                                   {'name' : "TRY/BHD",
+                                                    'title' : "Turkish Lira Baharain Dinar",
+                                                    'href' : "http://www.investing.com/currencies/try-bhd"}]}]}]}]
+    
+        #i.main_list = test_db 
         self.punched.emit("Parser finished working")
         sleep(1)
         print("Parser finished")
+        print(BASE)
         d = DataBase(BASE)
         d.clean()
         self.punched.emit("Database cleaned")
@@ -499,10 +536,10 @@ class WorkThread(QtCore.QThread):
         d.add(i.main_list)
         self.punched.emit("Created sql base")
         sleep(1)
-        self.terminate()
-        self.signal_done.emit()
-        c = Chooser(self.d.db)
-        c.exec_()
+        print("db created")
+        print("task terminated")
+        self.signal_done.emit(d.db)
+        
 
 class UpdateChooser(QtGui.QDialog):
     
@@ -511,7 +548,9 @@ class UpdateChooser(QtGui.QDialog):
         self.initUI()
         self.retranslateUI()
         self.task = WorkThread()
-        self.task.signal_done.connect(self.close)
+        #self.task.signal_done.connect(self.close)
+        #self.task.signal_done.connect(self.task.terminate)
+        self.task.signal_done.connect(self.recreateChooser)
         self.startTask()
         
     def initUI(self):
@@ -532,6 +571,13 @@ class UpdateChooser(QtGui.QDialog):
         
     def onProgress(self, i):
         self.label.setText(i)
+    
+    def recreateChooser(self, i):
+        self.close()
+        self.task.terminate()
+        print("here we go!")
+        c = Chooser(i)
+        c.exec_()
         
 class SysTrayIcon(QtGui.QSystemTrayIcon):
     '''system tray class'''
