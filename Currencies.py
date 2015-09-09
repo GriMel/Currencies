@@ -21,6 +21,7 @@ from urllib.parse import urlparse
 import sqlite3
 from os import path
 
+DEBUG = True
 
 MAS = [{'href':"http://www.investing.com/currencies/eur-rub",
              'title':"Euro Russian Ruble", 
@@ -99,14 +100,14 @@ class Investing():
         i = 0
         try:
             for index, zone_name in enumerate(titles):      #for every zone we have a structure
-                print(zone_name)                            #Zone_name
+                if DEBUG: print(zone_name)                  #Zone_name
                 zone_list = []                              #Currency1
                 j = lengths[index]                          #Currency2
                 zone_id = last_id + index                   #CurrencyN
                                                             #
                 for c in range(i, i+j):                     #titles store titles of zone
                     zone_list.append(lists[c])              #lengths store count of currencies
-                    print(lists[c])                         #lists store information about rates
+                    if DEBUG: print(lists[c])               #lists store information about rates
                 rates_list.append({'id':zone_id,            #for every zone we create zone_name and zone_list
                                    'name':zone_name,        #
                                    'content':zone_list})    #
@@ -431,7 +432,6 @@ class Chooser(QtGui.QDialog):#
                 row += 1
                 r_name = rate['name']
                 r_href = rate['href']
-                #print(r_href)
                 r_title = rate['title']
                 btn = QtGui.QPushButton(r_name)
                 btn.setToolTip(r_title)
@@ -447,7 +447,7 @@ class Chooser(QtGui.QDialog):#
         name = self.sender().text()
         title = self.sender().toolTip()
         href = self.sender().objectName()
-        print("{}-name. {}-title, {}-href".format(name, title, href))
+        if DEBUG: print("{}-name. {}-title, {}-href".format(name, title, href))
         self.picked =  Economic({'href':href, 'title':title, 'name':name})
         self.p.emit()
         
@@ -488,42 +488,7 @@ class WorkThread(QtCore.QThread):
         sleep(1)
         self.punched.emit("Parser working")
         i.parseMain()
-        i.browserStop()
-        test_db = [{'id' : 1,
-                'name':"Majors",
-                'content':[
-                           {'id':1, 
-                            'name':"European Euro", 
-                            'content':[
-                                       {'id':1,
-                                        'name':"Pacific",
-                                        'content':[{'name': "AUD/UAH", 
-                                                    'title' : "Australian Dollar Ukrainian Hryvnia",
-                                                    'href' : "http://www.investing.com/currencies/aud-uah"},
-                                                   {'name' : "USD/UAH", 
-                                                    'title' : "US Dollar Ukrainian Hryvnia",
-                                                    'href' : "http://www.investing.com/currencies/usd-uah"}]},
-                                        {'id':2,
-                                        'name':"Central America",
-                                        'content':[{'name' : "UAH/RUB", 
-                                                    'title' : "Ukrainian Hryvnia Russian Ruble", 
-                                                    'href' : "http://www.investing.com/currencies/uah-rub"},
-                                                   {'name':"DKK/UAH",
-                                                    'title' : "Danish Krone Ukrainian Hryvnia",
-                                                    'href' : "http://www.investing.com/currencies/dkk-uah"}]}]},
-                           {'id':2,
-                            'name':"US Dollar",
-                            'content':[
-                                       {'id':3,
-                                        'name':"South America",
-                                        'content':[{'name' : "TRY/OMR",
-                                                    'title' : "Turkish Lira Omani Rial",
-                                                    'href' : "http://www.investing.com/currencies/try-omr"},
-                                                   {'name' : "TRY/BHD",
-                                                    'title' : "Turkish Lira Baharain Dinar",
-                                                    'href' : "http://www.investing.com/currencies/try-bhd"}]}]}]}]
-    
-        #i.main_list = test_db 
+        i.browserStop() 
         self.punched.emit("Parser finished working")
         sleep(1)
         print("Parser finished")
@@ -532,12 +497,9 @@ class WorkThread(QtCore.QThread):
         d.clean()
         self.punched.emit("Database cleaned")
         sleep(1)
-        print("Db finished")
         d.add(i.main_list)
         self.punched.emit("Created sql base")
         sleep(1)
-        print("db created")
-        print("task terminated")
         self.signal_done.emit(d.db)
         
 
@@ -575,7 +537,6 @@ class UpdateChooser(QtGui.QDialog):
     def recreateChooser(self, i):
         self.close()
         self.task.terminate()
-        print("here we go!")
         c = Chooser(i)
         c.exec_()
         
@@ -624,7 +585,7 @@ class SysTrayIcon(QtGui.QSystemTrayIcon):
             self.contextMenu().show()
 
     def addNewAction(self, i):
-        print("Got it")
+        if DEBUG: print("New rate added to systray")
         self.a.append(i)
         action = QtGui.QAction(self)
         action.setObjectName(i.href)
