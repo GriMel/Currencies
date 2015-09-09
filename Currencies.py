@@ -309,10 +309,12 @@ class Economic():
                
     def _get_current(self):
         '''get current value'''
+        
         request = Request(self.href, headers=HEADERS)
         getcontext().prec = 2
         value = bs(urlopen(request)).find(id='last_last').text
         self.current = Decimal(value)
+        self.current = self.current
         
     def _string(self):
         '''value for action'''
@@ -320,7 +322,7 @@ class Economic():
             self._get_current()
             self._changed()
         except:
-            return None
+            return "No connection"
         return "{:7.3f}    {}".format(self.current, self.name)
     
     def _changed(self):
@@ -456,6 +458,10 @@ class Chooser(QtGui.QDialog):#
         webbrowser.open(self.sender().objectName())
     
     def update_db(self):
+        if not site_on():
+            r = QtGui.QMessageBox.information(self, 'Message', 'No internet connection', QtGui.QMessageBox.Ok)
+            return
+            
         reply = QtGui.QMessageBox.question(self, 'Message', 'Base is empty. Update? (takes 5-10 mins)', 
                                            QtGui.QMessageBox.Yes | QtGui.QMessageBox.No, 
                                            QtGui.QMessageBox.No)
@@ -603,6 +609,7 @@ class SysTrayIcon(QtGui.QSystemTrayIcon):
             action.setObjectName(i.href)
             action.setText(i.value)
             action.setToolTip(i.title)
+            action.triggered.connect(self.open_site)
             self.menu.addAction(action)
     
     def loop(self):
