@@ -47,6 +47,8 @@ HEADERS = {"User-Agent":"Mozilla/5.0 (X11; U; Linux i686) Gecko/20071127 Firefox
 #-------------SQL resources-------
 BASE = 'test.db'
 SCHEMA = 'schema.sql'
+BASE_RATES = 'rates.db'
+SCHEMA_RATES = 'schema_rates.sql'
 
 def site_on():
     try:
@@ -550,9 +552,9 @@ class SysTrayIcon(QtGui.QSystemTrayIcon):
     '''system tray class'''
     def __init__(self, icon, parent=None):
         super(SysTrayIcon, self).__init__()
+        self.a = []
         self.setIcon(icon)
         self.menu = QtGui.QMenu(parent)
-        self.init_list()
         self.menu.addSeparator()
         
         self.time = QtGui.QAction(self)
@@ -563,6 +565,10 @@ class SysTrayIcon(QtGui.QSystemTrayIcon):
         self.update = QtGui.QAction(self)
         self.update.triggered.connect(self.add_currency)
         self.update.setIconText("Add currency")
+        self.default = QtGui.QAction(self)
+        self.default.triggered.connect(self.setDefaultTray)
+        self.default.setIconText("Default")
+        self.menu.addAction(self.default)
         self.menu.addAction(self.update)
         self.menu.addSeparator()
         
@@ -572,10 +578,18 @@ class SysTrayIcon(QtGui.QSystemTrayIcon):
         self.exitAction.triggered.connect(self.closeEvent)
         self.menu.addAction(self.exitAction)
         self.setContextMenu(self.menu)
+        self.init_list()
         self.timer = QtCore.QTimer(self)
         self.timer.timeout.connect(self.loop)
         self.loop()
         self.activated.connect(self.handle_click)
+        
+    def setDefaultTray(self):
+        for i in self.a:
+            self.menu.removeAction(self.menu.actions()[0])
+            print(i, " deleted")
+        self.init_list(True)
+        self.loop()
         
     def handle_click(self, reason):
         '''correct right click in Windows'''
@@ -589,10 +603,6 @@ class SysTrayIcon(QtGui.QSystemTrayIcon):
             pos = QtCore.QPoint(x, y)
             self.contextMenu().move(pos)
             self.contextMenu().show()
-    
-    def deleteAction(self):
-        print(self.sender().parent())
-        self.menu.removeAction(self.sender().parent())
         
     def addNewAction(self, i):
         if DEBUG: print("New rate added to systray")
@@ -601,6 +611,7 @@ class SysTrayIcon(QtGui.QSystemTrayIcon):
         action.setObjectName(i.href)
         action.setText(i.value)
         action.setToolTip(i.title)
+        action.triggered.connect(self.open_site)
         menu = QtGui.QMenu()
         sub_action = QtGui.QAction(action)
         sub_action.setText(self.tr("Delete"))
@@ -608,25 +619,75 @@ class SysTrayIcon(QtGui.QSystemTrayIcon):
         menu.addAction(sub_action)
         action.setMenu(menu)
         if DEBUG: print(len(self.menu.actions()))
-        old = self.menu.actions()[3]
+        last = len(self.a)-1
+        old = self.menu.actions()[last]
         self.menu.insertAction(old, action)
         self.loop()
-        
-    def init_list(self):            
+    
+    def deleteAction(self):
+        print(self.sender().parent())
+        self.menu.removeAction(self.sender().parent())
+        for i in self.a:
+            if i.name in self.sender().parent().text():
+                self.a.remove(i)
+            print(len(self.a))
+    
+    def loadDefault(self):
+        with sqlite3.connect('rates.db') as conn:
+            conn.execute("DROP TABLE IF EXISTS Rates")
+            conn.commit()
         self.a = [Economic(i) for i in MAS]
         
+    def loadNotDefault(self):
+        with sqlite3.connect(BASE_RATES) as conn:
+            titles = conn.execute("SELECT Title FROM Rates").fetchall()
+            hrefs  = conn.execute("SELECT Href FROM Rates").fetchall()
+            names  = conn.execute("SELECT Name FROM Rates").fetchall()
+                        
+        for t, h, n in zip(titles, hrefs, names):
+            mas = {"href":h[0], "title":t[0], "name":n[0]}
+            self.a.append(Economic(mas))
+            
+        print("Loaded not default")
+    
+    def saveNewRates(self):
+        with sqlite3.connect(BASE_RATES) as conn:
+            with open(SCHEMA_RATES) as f:
+                schema = f.read()
+            conn.executescript(schema)
+            conn.commit()
+            for i in self.a:
+                conn.execute("INSERT INTO Rates(Title, Href, Name) VALUES(?, ?, ?)", (i.title, i.href, i.name))
+            conn.commit()
+            
+    
+    def init_list(self, default=False):
+        if default:
+            self.loadDefault()
+        else:
+            try:
+                print("Try")
+                self.loadNotDefault()
+            except:
+                print("Fuck you!")
+                self.loadDefault()
+            
         for i in self.a:
+            print(i)
             action = QtGui.QAction(self)
             action.setObjectName(i.href)
             action.setText(i.value)
             action.setToolTip(i.title)
             action.triggered.connect(self.open_site)
-            self.menu.addAction(action)
+            #self.menu.addAction(action)
+            old = self.menu.actions()[0]
+            self.menu.insertAction(old, action)
     
     def loop(self):
         '''infinite loop until app closed'''
         if self.timer.isActive(): self.timer.stop()                 #preventing earlier timer
         for c, w in zip(self.a, self.menu.actions()):
+            print(w.text())
             value = c._string()
             if not value: continue
             w.setText(value)
@@ -656,6 +717,8 @@ class SysTrayIcon(QtGui.QSystemTrayIcon):
         reply = QtGui.QMessageBox.question(q, 'Message', 'Are you sure to quit?', QtGui.QMessageBox.Yes | QtGui.QMessageBox.No, QtGui.QMessageBox.No)
         if reply == QtGui.QMessageBox.Yes:
             QtGui.QApplication.quit()
+            if len(self.a) > 3:
+                    self.saveNewRates()
 
 def main():
     app = QtGui.QApplication(sys.argv)
