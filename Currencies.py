@@ -589,7 +589,11 @@ class SysTrayIcon(QtGui.QSystemTrayIcon):
             pos = QtCore.QPoint(x, y)
             self.contextMenu().move(pos)
             self.contextMenu().show()
-
+    
+    def deleteAction(self):
+        print(self.sender().parent())
+        self.menu.removeAction(self.sender().parent())
+        
     def addNewAction(self, i):
         if DEBUG: print("New rate added to systray")
         self.a.append(i)
@@ -597,6 +601,13 @@ class SysTrayIcon(QtGui.QSystemTrayIcon):
         action.setObjectName(i.href)
         action.setText(i.value)
         action.setToolTip(i.title)
+        menu = QtGui.QMenu()
+        sub_action = QtGui.QAction(action)
+        sub_action.setText(self.tr("Delete"))
+        sub_action.triggered.connect(self.deleteAction)
+        menu.addAction(sub_action)
+        action.setMenu(menu)
+        print(len(self.menu.actions()))
         old = self.menu.actions()[3]
         self.menu.insertAction(old, action)
         self.loop()
