@@ -659,7 +659,7 @@ class SysTrayIcon(QtGui.QSystemTrayIcon):
             for i in self.a:
                 conn.execute("INSERT INTO Rates(Title, Href, Name) VALUES(?, ?, ?)", (i.title, i.href, i.name))
             conn.commit()
-            
+        print("Saved new rates")
     
     def init_list(self, default=False):
         if default:
@@ -714,11 +714,71 @@ class SysTrayIcon(QtGui.QSystemTrayIcon):
         '''make sure if really wanna quit'''
         q = QtGui.QWidget()
         q.setWindowIcon(QtGui.QIcon(EXIT))
+        msg = QtGui.QMessageBox()
+        msg.setText("Message")
+        msg.setWindowIcon(QtGui.QIcon(EXIT))
+        checkbox = QtGui.QCheckBox("Save new rates")
+        checkbox.blockSignals(True)
+        
+        msg.addButton(QtGui.QMessageBox.Yes)
+        msg.addButton(QtGui.QMessageBox.No)
+        msg.setDefaultButton(QtGui.QMessageBox.No)
+        msg.addButton(checkbox, QtGui.QMessageBox.ResetRole)
+        new = len(self.a) > 3
+        m = ExitWindow(new)
+        m.saved.connect(self.saveNewRates)
+        m.exec_()
+        
+        '''
         reply = QtGui.QMessageBox.question(q, 'Message', 'Are you sure to quit?', QtGui.QMessageBox.Yes | QtGui.QMessageBox.No, QtGui.QMessageBox.No)
         if reply == QtGui.QMessageBox.Yes:
             QtGui.QApplication.quit()
             if len(self.a) > 3:
                     self.saveNewRates()
+        '''
+        
+class ExitWindow(QtGui.QDialog):
+    saved = QtCore.pyqtSignal()
+    def __init__(self, new):
+        super(ExitWindow, self).__init__()
+        self.new = new
+        self.initUI()
+        self.retranslateUI()
+        self.initActions()
+    
+    def initUI(self):
+        layout = QtGui.QVBoxLayout()
+        but_lay = QtGui.QHBoxLayout()
+        self.label = QtGui.QLabel()
+        self.checkbox = QtGui.QCheckBox()
+        self.yes = QtGui.QPushButton()
+        self.no = QtGui.QPushButton()
+        but_lay.addWidget(self.yes)
+        but_lay.addWidget(self.no)
+        layout.addWidget(self.label)
+        if self.new:
+            layout.addWidget(self.checkbox)
+        layout.addLayout(but_lay)
+        self.setLayout(layout)
+    
+    
+    def retranslateUI(self):
+        self.setWindowIcon(QtGui.QIcon(EXIT))
+        self.setWindowTitle(self.tr("Quit"))
+        self.label.setText(self.tr("Are you sure to quit?"))
+        self.checkbox.setText(self.tr("Save new rates"))
+        self.yes.setText(self.tr("Yes"))
+        self.no.setText(self.tr("No"))
+        
+    
+    def exit(self):
+        if self.checkbox.isChecked():
+            self.saved.emit()
+        QtGui.QApplication.quit()
+        
+    def initActions(self):
+        self.yes.clicked.connect(self.exit)
+        self.no.clicked.connect(self.close)
 
 def main():
     app = QtGui.QApplication(sys.argv)
