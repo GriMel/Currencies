@@ -607,7 +607,7 @@ class SysTrayIcon(QtGui.QSystemTrayIcon):
         sub_action.triggered.connect(self.deleteAction)
         menu.addAction(sub_action)
         action.setMenu(menu)
-        print(len(self.menu.actions()))
+        if DEBUG: print(len(self.menu.actions()))
         old = self.menu.actions()[3]
         self.menu.insertAction(old, action)
         self.loop()
