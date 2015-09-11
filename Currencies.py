@@ -38,6 +38,7 @@ UP = "src/up.png"
 EQUAL = "src/equal.png"
 EXIT = "src/exit.png"
 MENU = "src/exchange.png"
+CHOOSER_ICON = "src/chooser.png"
 #-------------time for update 30 seconds * 1000
 UPDATE_TIME = 30000 
 #-------------FOR PARSING INVESTING.COM----------------------
@@ -347,7 +348,7 @@ class Chooser(QtGui.QDialog):#
         self.picked = None
         self.setupUI()
         self.place_center()
-        self.translateUI()
+        self.retranslateUI()
     
     def place_center(self):
         center_coord = []
@@ -472,8 +473,9 @@ class Chooser(QtGui.QDialog):#
             self.close()
             uc.exec_()
         
-    def translateUI(self):
-        pass
+    def retranslateUI(self):
+        self.setWindowIcon(QtGui.QIcon(CHOOSER_ICON))
+        self.setWindowTitle(self.tr("List of rates"))
 
 class WorkThread(QtCore.QThread):
     punched = QtCore.pyqtSignal(str)
