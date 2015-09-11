@@ -17,7 +17,6 @@ from PyQt4.QtCore import pyqtSignal
 
 import sys
 import webbrowser
-from urllib.parse import urlparse
 import sqlite3
 from os import path
 
