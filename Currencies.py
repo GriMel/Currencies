@@ -51,9 +51,10 @@ SCHEMA = 'schema.sql'
 BASE_RATES = 'rates.db'
 SCHEMA_RATES = 'schema_rates.sql'
 
-def site_on():
+def site_on ():
     try:
-        response=urlopen('http://investing.com',timeout=1)
+        request = Request(URL_CURR, headers=HEADERS)
+        response=urlopen(request)
         return True
     except URLError as err: pass
     return False
