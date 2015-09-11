@@ -79,7 +79,7 @@ class Economic():
         self.get_value()
         return self.curr
 
-def site_on():
+def siteOn():
     try:
         response=urlopen('http://investing.com',timeout=1)
         return True
@@ -115,7 +115,7 @@ def main():
     init()
     a = [Economic(i) for i in (EUR_RUB, USD_RUB, BRENT)]
     for i in range(10):
-        if site_on:
+        if siteOn:
             for c in a:
                 c.do()
             sys.stdout.write('\r')

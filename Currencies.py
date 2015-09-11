@@ -51,7 +51,7 @@ SCHEMA = 'schema.sql'
 BASE_RATES = 'rates.db'
 SCHEMA_RATES = 'schema_rates.sql'
 
-def site_on ():
+def siteOn ():
     try:
         request = Request(URL_CURR, headers=HEADERS)
         _=urlopen(request)
@@ -59,7 +59,7 @@ def site_on ():
     except URLError: pass
     return False
 
-def create_request(url):
+def createRequest(url):
     request = Request(url, headers=HEADERS)
     s = urlopen(request)
     return s 
@@ -89,7 +89,7 @@ class Investing():
         
     def parserInit(self, url):
         '''init parser'''
-        s = create_request(url)
+        s = createRequest(url)
         pageContent = s.read()
         parser = etree.HTMLParser()
         self.tree = etree.fromstring(pageContent, parser)
@@ -322,11 +322,13 @@ class Economic():
         
     def _string(self):
         '''value for action'''
+        
+        #check for connection
         try:
             self._get_current()
             self._changed()
         except:
-            return "No connection"
+            return "No connection"      
         return "{:7.3f}    {}".format(self.current, self.name)
     
     def _changed(self):
@@ -342,6 +344,7 @@ class Economic():
 class Chooser(QtGui.QDialog):#
     '''Widget - analogue to currency page view '''
     p = pyqtSignal()                                #IMPORTANT - not inside constructor 
+    
     def __init__(self, db, parent=None):
         super(Chooser, self).__init__()
         self.db = db
@@ -367,10 +370,10 @@ class Chooser(QtGui.QDialog):#
                 cur_widget = QtGui.QWidget()
                 tbox_widget.addItem(cur_widget, cur_name)
                 zones = currency['content']
-                grid_layout = self.fill_grid(hor, ver, zones)
+                grid_layout = self.fillGrid(hor, ver, zones)
             tbox_widget.setFixedHeight(tbox_widget.sizeHint().height())
             tbox_widget.setFixedWidth(tbox_widget.sizeHint().width())
-            tbox_widget.currentChanged.connect(self.update_grid)
+            tbox_widget.currentChanged.connect(self.updateGrid)
             
             hor_layout = QtGui.QHBoxLayout(con_widget)
             
@@ -390,19 +393,19 @@ class Chooser(QtGui.QDialog):#
         self.tabWidget.adjustSize()
         self.lay = QtGui.QVBoxLayout()
         self.up_but = QtGui.QPushButton("Update")
-        self.up_but.clicked.connect(self.update_db)
+        self.up_but.clicked.connect(self.updateDataBase)
         self.lay.addWidget(self.tabWidget)
         self.lay.addWidget(self.up_but)
         self.setLayout(self.lay)
         
-    def update_grid(self):
+    def updateGrid(self):
         '''update grid of currencies with zone titles'''
         widget = self.tabWidget.currentWidget().widget()
         hor = self.tabWidget.currentIndex()
         ver = self.sender().currentIndex()
         db = self.db
         zones = db[hor]['content'][ver]['content']
-        grid_new = self.fill_grid(hor, ver, zones)
+        grid_new = self.fillGrid(hor, ver, zones)
         
         v_layout = widget.layout().itemAt(1)
         grid_old = v_layout.itemAt(0)
@@ -418,7 +421,7 @@ class Chooser(QtGui.QDialog):#
         v_layout.addLayout(grid_new)
         v_layout.addStretch(1)
         
-    def fill_grid(self, hor, ver, zones):
+    def fillGrid(self, hor, ver, zones):
         '''creating grid'''
         grid_new = QtGui.QGridLayout()
         row = 0
@@ -436,27 +439,25 @@ class Chooser(QtGui.QDialog):#
                 btn = QtGui.QPushButton(r_name)
                 btn.setToolTip(r_title)
                 btn.setObjectName(r_href)
-                btn.clicked.connect(self.add_rate)
+                btn.clicked.connect(self.addRate)
                 grid_new.addWidget(btn, row, col, 1, 1)
             row = 0
             col +=1
         
         return grid_new
     
-    def add_rate(self):
+    def addRate(self):
+        '''action when clicked button'''
         name = self.sender().text()
         title = self.sender().toolTip()
         href = self.sender().objectName()
+        
         if DEBUG: print("{}-name. {}-title, {}-href".format(name, title, href))
         self.picked =  Economic({'href':href, 'title':title, 'name':name})
         self.p.emit()
-        
-    def go_site(self):
-        '''click button of rate'''
-        webbrowser.open(self.sender().objectName())
-    
-    def update_db(self):
-        if not site_on():
+            
+    def updateDataBase(self):
+        if not siteOn():
             _ = QtGui.QMessageBox.information(self, 'Message', 'No internet connection', QtGui.QMessageBox.Ok)
             return
             
@@ -473,8 +474,10 @@ class Chooser(QtGui.QDialog):#
         self.setWindowTitle(self.tr("List of rates"))
 
 class WorkThread(QtCore.QThread):
+    
     punched = QtCore.pyqtSignal(str)
     signal_done = QtCore.pyqtSignal(list)
+    
     def __init__(self):
         super(WorkThread, self).__init__()
         self.working = True
@@ -586,7 +589,7 @@ class SysTrayIcon(QtGui.QSystemTrayIcon):
         self.title = self.tr("Exchange")
         
     def initActions(self):
-        self.activated.connect(self.handle_click)
+        self.activated.connect(self.handleClick)
         self.time.triggered.connect(self.loop)
         self.update.triggered.connect(self.add_currency)
         self.default.triggered.connect(self.setDefaultTray)
@@ -600,7 +603,7 @@ class SysTrayIcon(QtGui.QSystemTrayIcon):
         self.initList(True)
         self.loop()
         
-    def handle_click(self, reason):
+    def handleClick(self, reason):
         '''correct right click in Windows'''
         if reason == QtGui.QSystemTrayIcon.MiddleClick:
             self.closeEvent()
@@ -613,14 +616,14 @@ class SysTrayIcon(QtGui.QSystemTrayIcon):
             self.contextMenu().move(pos)
             self.contextMenu().show()
         
-    def addNewAction(self, i):
+    def addAction(self, i):
         if DEBUG: print("New rate added to systray")
         self.a.append(i)
         action = QtGui.QAction(self)
         action.setObjectName(i.href)
         action.setText(i.value)
         action.setToolTip(i.title)
-        action.triggered.connect(self.open_site)
+        action.triggered.connect(self.openLink)
         menu = QtGui.QMenu()
         sub_action = QtGui.QAction(action)
         sub_action.setText(self.tr("Delete"))
@@ -687,7 +690,7 @@ class SysTrayIcon(QtGui.QSystemTrayIcon):
             action.setObjectName(i.href)
             action.setText(i.value)
             action.setToolTip(i.title)
-            action.triggered.connect(self.open_site)
+            action.triggered.connect(self.openLink)
             #self.menu.addAction(action)
             old = self.menu.actions()[0]
             self.menu.insertAction(old, action)
@@ -713,10 +716,10 @@ class SysTrayIcon(QtGui.QSystemTrayIcon):
         d = DataBase(BASE)
         l = d.load()
         self.c = Chooser(l)
-        self.c.p.connect(lambda:self.addNewAction(self.c.picked))
+        self.c.p.connect(lambda:self.addAction(self.c.picked))
         self.c.show()
         
-    def open_site(self):
+    def openLink(self):
         webbrowser.open(self.sender().objectName())
          
     def closeEvent(self):
