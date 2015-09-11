@@ -5,7 +5,7 @@ from bs4 import BeautifulSoup as bs
 from urllib.request import urlopen, Request
 from urllib.error import URLError
 from decimal import getcontext, Decimal
-from time import strftime, sleep, time
+from time import strftime, sleep
 from lxml import etree
 from pyvirtualdisplay import Display
 from selenium import webdriver
@@ -32,7 +32,7 @@ MAS = [{'href':"http://www.investing.com/currencies/eur-rub",
             {'href':"http://www.investing.com/commodities/brent-oil",
              'title':'brent-oil',
              'name':'Brent-Oil'}]
-#-------------icons for system tray--------------------------
+#-------------icons ----------------------------------------
 DOWN = "src/down.png"
 UP = "src/up.png"
 EQUAL = "src/equal.png"
@@ -54,9 +54,9 @@ SCHEMA_RATES = 'schema_rates.sql'
 def site_on ():
     try:
         request = Request(URL_CURR, headers=HEADERS)
-        response=urlopen(request)
+        _=urlopen(request)
         return True
-    except URLError as err: pass
+    except URLError: pass
     return False
 
 def create_request(url):
@@ -348,12 +348,7 @@ class Chooser(QtGui.QDialog):#
         
         self.picked = None
         self.setupUI()
-        self.place_center()
         self.retranslateUI()
-    
-    def place_center(self):
-        center_coord = []
-        #place in the middle of the screen
     
     def setupUI(self):
         self.setObjectName("Chooser")
@@ -365,8 +360,7 @@ class Chooser(QtGui.QDialog):#
             tab.setWidget(con_widget)
             con_name = continent['name']
             tbox_widget = QtGui.QToolBox()
-            
-            
+                        
             currencies = continent.get('content')
             for ver, currency in enumerate(currencies):
                 cur_name = currency.get('name')
@@ -463,7 +457,7 @@ class Chooser(QtGui.QDialog):#
     
     def update_db(self):
         if not site_on():
-            r = QtGui.QMessageBox.information(self, 'Message', 'No internet connection', QtGui.QMessageBox.Ok)
+            _ = QtGui.QMessageBox.information(self, 'Message', 'No internet connection', QtGui.QMessageBox.Ok)
             return
             
         reply = QtGui.QMessageBox.question(self, 'Message', 'Base is empty. Update? (takes 5-10 mins)', 
@@ -502,7 +496,7 @@ class WorkThread(QtCore.QThread):
         i.browserStop() 
         self.punched.emit("Parser finished working")
         sleep(1)
-        print("Parser finished")
+        if DEBUG: print("Parser finished")
         print(BASE)
         d = DataBase(BASE)
         d.clean()
@@ -546,6 +540,7 @@ class UpdateChooser(QtGui.QDialog):
         self.label.setText(i)
     
     def recreateChooser(self, i):
+        '''updating Chooser'''
         self.close()
         self.task.terminate()
         c = Chooser(i)
@@ -577,7 +572,7 @@ class SysTrayIcon(QtGui.QSystemTrayIcon):
         
         self.exitAction = QtGui.QWidgetAction(self)
         self.exitAction.setIcon(QtGui.QIcon(EXIT))
-        self.exitAction.setIconText("Exit")
+        self.exitAction.setIconText(self.tr("Exit"))
         self.exitAction.triggered.connect(self.closeEvent)
         self.menu.addAction(self.exitAction)
         self.setContextMenu(self.menu)
@@ -588,9 +583,10 @@ class SysTrayIcon(QtGui.QSystemTrayIcon):
         self.activated.connect(self.handle_click)
         
     def setDefaultTray(self):
+        '''set default 3 rates'''
         for i in self.a:
             self.menu.removeAction(self.menu.actions()[0])
-            print(i, " deleted")
+            if DEBUG: print(i, " deleted")
         self.init_list(True)
         self.loop()
         
@@ -792,30 +788,6 @@ def main():
     trayIcon.showMessage("Биржа", strftime("%H"+":"+"%M"+":"+"%S"), 1000)
     sys.exit(app.exec_())
 
-def test_chooser():
-    d = DataBase(BASE)
-    l = d.load()
-    app = QtGui.QApplication(sys.argv)
-    c = Chooser(l)
-    c.show()
-    sys.exit(app.exec_())
-
-def test_asyncio():
-    i = Investing()    
-    i.browserStart()
-    i.parserInit(URL_CURR)
-    i.parse_continents_hor()
-    i.show()
-    i.browserStop()
-
-def test_update():
-    app = QtGui.QApplication(sys.argv)
-    u = UpdateChooser()
-    u.show()
-    sys.exit(app.exec_())
     
 if __name__ == "__main__":
     main()
-    #test_asyncio()
-    #test_chooser()
-    #test_update()
