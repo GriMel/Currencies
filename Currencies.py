@@ -37,7 +37,7 @@ DOWN = "src/down.png"
 UP = "src/up.png"
 EQUAL = "src/equal.png"
 EXIT = "src/exit.png"
-MENU = "src/exchange.png"
+SYS_TRAY = "src/exchange.png"
 CHOOSER_ICON = "src/chooser.png"
 #-------------time for update 30 seconds * 1000
 UPDATE_TIME = 30000 
@@ -548,46 +548,56 @@ class UpdateChooser(QtGui.QDialog):
         
 class SysTrayIcon(QtGui.QSystemTrayIcon):
     '''system tray class'''
-    def __init__(self, icon, parent=None):
+    def __init__(self, parent=None):
         super(SysTrayIcon, self).__init__()
         self.a = []
-        self.setIcon(icon)
-        self.menu = QtGui.QMenu(parent)
-        self.menu.addSeparator()
+        self.title = ""
+        self.initUI()
+        self.retranslateUI()
+        self.initActions()
+        self.initList()
         
-        self.time = QtGui.QAction(self)
-        self.time.triggered.connect(self.loop)
-        self.menu.addAction(self.time)
-        self.menu.addSeparator()
-        
-        self.update = QtGui.QAction(self)
-        self.update.triggered.connect(self.add_currency)
-        self.update.setIconText("Add currency")
-        self.default = QtGui.QAction(self)
-        self.default.triggered.connect(self.setDefaultTray)
-        self.default.setIconText("Default")
-        self.menu.addAction(self.default)
-        self.menu.addAction(self.update)
-        self.menu.addSeparator()
-        
-        self.exitAction = QtGui.QWidgetAction(self)
-        self.exitAction.setIcon(QtGui.QIcon(EXIT))
-        self.exitAction.setIconText(self.tr("Exit"))
-        self.exitAction.triggered.connect(self.closeEvent)
-        self.menu.addAction(self.exitAction)
-        self.setContextMenu(self.menu)
-        self.init_list()
         self.timer = QtCore.QTimer(self)
         self.timer.timeout.connect(self.loop)
         self.loop()
+
+    def initUI(self):
+        '''initializing UI of system tray'''
+        #trayIcon.showMessage("Биржа", strftime("%H"+":"+"%M"+":"+"%S"), 1000)
+        self.menu = QtGui.QMenu()
+        self.menu.addSeparator()
+        self.time = QtGui.QAction(self)
+        self.update = QtGui.QAction(self)
+        self.default = QtGui.QAction(self)
+        self.menu.addAction(self.time)
+        self.menu.addSeparator()
+        self.menu.addAction(self.default)
+        self.menu.addAction(self.update)
+        self.menu.addSeparator()
+        self.exitAction = QtGui.QWidgetAction(self)
+        self.menu.addAction(self.exitAction)
+        self.setContextMenu(self.menu)
+
+    def retranslateUI(self):
+        self.setIcon(QtGui.QIcon(SYS_TRAY))
+        self.update.setIconText("Add currency")
+        self.default.setIconText("Default")
+        self.exitAction.setIconText(self.tr("Exit"))
+        self.title = self.tr("Exchange")
+        
+    def initActions(self):
         self.activated.connect(self.handle_click)
+        self.time.triggered.connect(self.loop)
+        self.update.triggered.connect(self.add_currency)
+        self.default.triggered.connect(self.setDefaultTray)
+        self.exitAction.triggered.connect(self.closeEvent)
         
     def setDefaultTray(self):
         '''set default 3 rates'''
         for i in self.a:
             self.menu.removeAction(self.menu.actions()[0])
             if DEBUG: print(i, " deleted")
-        self.init_list(True)
+        self.initList(True)
         self.loop()
         
     def handle_click(self, reason):
@@ -660,7 +670,7 @@ class SysTrayIcon(QtGui.QSystemTrayIcon):
             conn.commit()
         print("Saved new rates")
     
-    def init_list(self, default=False):
+    def initList(self, default=False):
         if default:
             self.loadDefault()
         else:
@@ -782,10 +792,9 @@ class ExitWindow(QtGui.QDialog):
 def main():
     app = QtGui.QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)    #don't close systray after closing any window
-    icon = QtGui.QIcon(MENU)
-    trayIcon = SysTrayIcon(icon)
+    trayIcon = SysTrayIcon()
     trayIcon.show()
-    trayIcon.showMessage("Биржа", strftime("%H"+":"+"%M"+":"+"%S"), 1000)
+    trayIcon.showMessage(trayIcon.title, strftime("%H"+":"+"%M"+":"+"%S"), 1000)
     sys.exit(app.exec_())
 
     
