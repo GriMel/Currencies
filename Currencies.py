@@ -532,6 +532,7 @@ class UpdateChooser(QtGui.QDialog):
         self.setLayout(layout)
         
     def retranslateUI(self):
+        self.setWindowTitle(self.tr("Update"))
         self.label.setText(self.tr("Retrieving data. This can take up for 5-10 minutes"))
         
     def startTask(self):
