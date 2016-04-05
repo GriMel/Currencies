@@ -1,4 +1,4 @@
-#! python
+# /usr/bin/env python3
 # -*-coding:utf-8-*-
 
 from bs4 import BeautifulSoup as bs
@@ -53,7 +53,7 @@ SCHEMA_RATES = 'schema_rates.sql'
 
 
 def siteOn():
-    """checks the connection"""
+    '''checks the connection'''
     try:
         request = Request(URL_CURR, headers=HEADERS)
         urlopen(request)
@@ -70,29 +70,33 @@ def createRequest(url):
 
 
 class Investing():
-    """class for parsing site to one array"""
+    '''class for parsing site to one array'''
     def __init__(self, l=None):
         self.main_list = l
 
     def browserStart(self):
-        """start display and browser"""
+        '''start display and browser'''
+        # initialize virtual display
         self.display = Display(visible=0, size=(800, 600))
         self.display.start()
+        # initialize browser
         self.browser = webdriver.Firefox()
         self.browser.get(URL_CURR)
 
     def browserStop(self):
-        """close display and browser"""
+        "Close display and browser"
         self.browser.close()
         self.display.stop()
 
     def browserClick(self, el_id):
-        """handle click"""
+        '''handle click'''
         element = self.browser.find_element_by_id(el_id)
         element.click()
 
     def parserInit(self, url):
-        """init parser"""
+        """
+        Initialize the parser
+        """
         s = createRequest(url)
         pageContent = s.read()
         parser = etree.HTMLParser()
@@ -102,28 +106,30 @@ class Investing():
         self.currency_id = 1
 
     def createRatesList(self, titles, lengths, lists):
-        """creating rates list for every currency"""
+        """
+        Create rates list for every currency
+        """
         last_id = self.last_id
         rates_list = []
         i = 0
         try:
-            '''
-            For every zone we have a structure
-            Currency1
-            Currency2
-            CurrencyN
-
-            Titles store titles of zone
-            Lengths store count of currencies
-            Lists store information about currency rates
-            For every zone we create zone_name and zone_list
-            '''
+            # For every zone we have a structure
+            # Zone_name
+            # ----Currency1
+            # ----Currency2
+            # ----CurrencyN
+            # *titles store titles of zones
+            # *length store counts of currencies
+            # *lists store information about rates
+            # ||||||||||||||||||||||||||||||||||||
+            # For every zone we create zone_name and zone_list
             for index, zone_name in enumerate(titles):
                 if DEBUG:
                     print(zone_name)
                 zone_list = []
                 j = lengths[index]
                 zone_id = last_id + index
+
                 for c in range(i, i+j):
                     zone_list.append(lists[c])
                     if DEBUG:
@@ -135,19 +141,22 @@ class Investing():
         except:
             print(sys.exc_info())
 
-        self.last_id = zone_id + 1
-        assert rates_list
+        self.last_id = zone_id +1
+        assert rates_list    
         return rates_list
 
     def parseCurr(self, soup):
-        """parsing every currency for zone/rates"""
+        """
+        Parse every currency for zone/rates
+        """
+        # Xpath-s
         tableClass = "inlineblock alignTop curExpCol"
         titleClass = "curTitle inlineblock bold"
         lengths = []
         titles = []
         lists = []
 
-        # name of every zone
+        #name of every zone
         for t in soup.findAll("span", {"class": titleClass}):
             assert t.text, "title is Empty"
             titles.append(t.text)
@@ -157,7 +166,7 @@ class Investing():
             for ul in i.findAll('ul'):
                 lengths.append(len(ul.findAll('li')))
 
-            # rate title: USD/AUD, href: "http://..", title:US Dollar Austrian Dollar
+            #rate title: USD/AUD, href: "http://..", title:US Dollar Austrian Dollar
             for j in i.select('li > a'):
                 href = j.get('href')
                 title = j.get('title')
@@ -174,7 +183,7 @@ class Investing():
         return l
 
     def parseCurrVer(self):
-        """parsing currencies in vertical line"""
+        """Parser currency tab [vertical]"""
         verTab = '//*[@id="filterBoxTable"]' #/html/body/div[7]/section/div[4]/div[3]/div/div[1]
         currs_list = []
         parser = etree.HTMLParser()
@@ -189,13 +198,13 @@ class Investing():
                 currency_id = self.currency_id
                 currs_list.append({'id': currency_id,
                                    'name': name,
-                                   'content': self.parseCurr(soup)}) #'US Dollar' : []
-                self.currency_id += 1 
+                                   'content': self.parseCurr(soup)})
+                self.currency_id += 1
         return currs_list
 
     def parseMain(self):
-        """parsing continents line (horizontal line) - main parser"""
-        horTab = '//*[@id="filterBoxExpTabsTop"]' #/html/body/div[7]/section/div[4]/div[1]/ul
+        """Parse continents line [horizontal]"""
+        horTab = '//*[@id="filterBoxExpTabsTop"]' # /html/body/div[7]/section/div[4]/div[1]/ul
         self.main_list = []
         for elem in self.tree.xpath(horTab):
             for i in elem:
@@ -209,7 +218,9 @@ class Investing():
                 self.continent_id += 1
 
     def show(self):
-        """test - show created list"""
+        """
+        Show created list [for test purposes]
+        """
         for continent in self.main_list:
             print("'id':{}, 'name' : {}".format(continent.get('id'),
                                                 continent.get('name')))
@@ -222,19 +233,27 @@ class Investing():
                                                         zone.get('name')))
                     rates = zone.get('content')
                     for rate in rates:
-                        print("'id': {}, 'title': {}, 'name' : {}, 'href' : {}".format(rate.get('id'), 
-                                                                                       rate.get('title'), 
-                                                                                       rate.get('name'), 
-                                                                                       rate.get('href')))         
+                        print("'id': {}, " +
+                              "'title': {}, " +
+                              "'name' : {}, " +
+                              "'href' : {}".format(rate.get('id'),
+                                                   rate.get('title'),
+                                                   rate.get('name'),
+                                                   rate.get('href')))
 
 
 class DataBase():
-    """class for manipulating with sql"""
+
     def __init__(self, name):
+        """
+        Empty base with name
+        """
         self.name = name
 
     def create(self, schema):
-        """create empty base with schema"""
+        """
+        Create schema for empty base
+        """
         self.schema = schema
         dbIsNew = not path.exists(self.name)
         self.conn = sqlite3.connect(self.name)
@@ -250,7 +269,9 @@ class DataBase():
         self.conn.commit()
 
     def clean(self):
-
+        """
+        Clean database
+        """
         with sqlite3.connect(self.name) as conn:
             conn.execute("DELETE FROM Continents")
             conn.execute("DELETE FROM Zones")
@@ -259,7 +280,9 @@ class DataBase():
             conn.commit()
 
     def add(self, db):
-        """add list from Investing to database"""
+        """
+        Add list from Investing to database
+        """
         assert db, 'empty list given'
         self.db = db
         with sqlite3.connect(self.name) as conn:
@@ -267,42 +290,41 @@ class DataBase():
             for continent in self.db:
                 cur.execute('INSERT INTO Continents VALUES(?,?)',
                             (continent.get('id'),
-                             continent.get('name')))
-
+                                continent.get('name')))
                 currencies = continent.get('content')
                 for currency in currencies:
                     cur.execute('INSERT INTO Currencies VALUES(?,?,?)',
                                 (currency.get('id'),
-                                 currency.get('name'),
-                                 continent.get('id')))
-
+                                    currency.get('name'),
+                                    continent.get('id')))
                     zones = currency.get('content')
                     for zone in zones:
                         cur.execute('INSERT INTO Zones VALUES (?,?,?,?)',
                                     (zone.get('id'),
-                                     zone.get('name'),
-                                     continent.get('id'),
-                                     currency.get('id')))
-
+                                        zone.get('name'),
+                                        continent.get('id'),
+                                        currency.get('id')))
                         rates = zone.get('content')
                         for rate in rates:
-                            cur.execute('INSERT INTO Rates VALUES (?,?,?,?,?,?,?)',
-                                        (rate.get('id'),
-                                         rate.get('name'),
-                                         rate.get('title'),
-                                         rate.get('href'),
-                                         continent.get('id'),
-                                         currency.get('id'),
-                                         zone.get('id')))
+                            cur.execute(
+                                'INSERT INTO Rates VALUES (?,?,?,?,?,?,?)',
+                                (rate.get('id'),
+                                    rate.get('name'),
+                                    rate.get('title'),
+                                    rate.get('href'),
+                                    continent.get('id'),
+                                    currency.get('id'),
+                                    zone.get('id')))
             conn.commit()
 
     def load(self):
-        """load from existing database to list"""
+        """
+        Load from existing database to list
+        """
         self.db = []
         with sqlite3.connect(self.name) as conn:
             cursor = conn.cursor()
-            continents = cursor.execute(
-                    "SELECT * FROM Continents").fetchall()
+            continents = cursor.execute("SELECT * FROM Continents").fetchall()
             for continent in continents:
                 co_id, co_n = continent[0], continent[1]
                 self.db.append({'id': co_id,
@@ -311,46 +333,53 @@ class DataBase():
                 currencies = cursor.execute(
                     "SELECT * FROM Currencies WHERE ContinentId = ?",
                     (co_id,)).fetchall()
-
                 for currency in currencies:
                     cur_id, cur_n = currency[0], currency[1]
-                    self.db[-1]['content'].append(
-                                {'id': cur_id, 'name': cur_n, 'content': []})
+                    # Shitty code goes from here
+                    # Temporary solution - don't like it very much
+                    self.db[-1]['content'].append({'id': cur_id,
+                                                   'name': cur_n,
+                                                   'content': []})
                     zones = cursor.execute(
-                       '''
-                       SELECT * FROM Zones WHERE ContinentId = :co_id
-                        AND CurrencyId = :cur_id
-                       ''',
-                       {'co_id': co_id,
-                        'cur_id': cur_id}).fetchall()
-
+                        "SELECT * FROM Zones WHERE ContinentId = :co_id AND CurrencyId = :cur_id",
+                        {'co_id': co_id,
+                         'cur_id': cur_id}).fetchall()
                     for zone in zones:
                         z_id, z_n = zone[0], zone[1]
-                        self.db[-1]['content'][-1]['content'].append(
-                                                    {'id': z_id,
-                                                     'name': z_n,
-                                                     'content': []})
+                        self.db[-1]['content'][-1]['content'].append({'id': z_id,
+                                                                      'name': z_n,
+                                                                      'content': []})
                         rates = cursor.execute(
-                            '''
-                            SELECT * FROM Rates WHERE ContinentId = :co_id
-                             AND CurrencyId = :cur_id
-                             AND ZoneId = :z_id
-                            ''', {'co_id': co_id,
-                                  'cur_id': cur_id,
-                                  'z_id': z_id})
+                            "SELECT * FROM Rates WHERE ContinentId = :co_id AND CurrencyId = :cur_id AND ZoneId = :z_id",
+                            {'co_id': co_id,
+                             'cur_id': cur_id,
+                             'z_id': z_id})
                         for rate in rates:
-                            r_id = rate[0]
-                            r_name = rate[1]
-                            r_title = rate[2]
-                            r_href = rate[3]
-                            self.db[-1]['content'][-1]['content'][-1]['content'].append({'id':r_id, 'name' : r_name,'title':r_title, 'href':r_href})
+                            r_id, r_n, r_t, r_href = rate[0], rate[1], rate[2], rate[3]
+                            self.db[-1]['content'][-1]['content'][-1]['content'].append(
+                                {'id': r_id,
+                                'name': r_n,
+                                'title': r_t,
+                                'href': r_href})
         assert self.db, "Database is empty"
         return self.db
 
 
 class Economic():
-
+    """
+    Class for every rate
+    """
     def __init__(self, l):
+        """
+        Initialize instance with
+            :name - USD/RUR
+            :title - United States Dollar Russian Ruble
+            :href - page with rates
+            :previous - previous value
+            :current - current value
+            :change - rises, lowers or still the same
+            :value - shown value in panel
+        """
         self.name = l['name']
         self.title = l['title']
         self.href = l['href']
@@ -360,7 +389,8 @@ class Economic():
         self.value = self._string()
 
     def _get_current(self):
-        """get current value"""
+        """Get current value"""
+
         request = Request(self.href, headers=HEADERS)
         getcontext().prec = 2
         value = bs(urlopen(request)).find(id='last_last').text
@@ -368,8 +398,11 @@ class Economic():
         self.current = self.current
 
     def _string(self):
-        """value for action"""
-        # check for connection
+        """
+        Comprehensive value for panel's action
+        """
+
+        # Check for connection
         try:
             self._get_current()
             self._changed()
@@ -378,7 +411,7 @@ class Economic():
         return "{:7.3f}    {}".format(self.current, self.name)
 
     def _changed(self):
-        """check if chandged"""
+        """Check if value changed"""
         if not self.previous or self.previous == self.current:
             self.change = "="
         elif self.current > self.previous:
@@ -389,14 +422,18 @@ class Economic():
 
 
 class Chooser(QtGui.QDialog):
-    """Widget - analogue to currency page view """
-    '''
-    IMPORTANT - not inside constructor
-    signal
-    '''
-    p = pyqtSignal()
+    """
+    Widget - analogue of site - choosing page
+    """
+    # Signal for emitting when button is clicked
+    selected = pyqtSignal()
 
     def __init__(self, db, parent=None):
+        """
+        Initialize widget
+            :picked - picked button
+            :db - given database
+        """
         super(Chooser, self).__init__()
         self.db = db
 
@@ -405,6 +442,11 @@ class Chooser(QtGui.QDialog):
         self.retranslateUI()
 
     def setupUI(self):
+        """
+        Creating UI
+            1. Creating horizontal tab
+            2. Creating vertical tab
+        """
         self.setObjectName("Chooser")
         self.tabWidget = QtGui.QTabWidget(self)
 
@@ -450,7 +492,9 @@ class Chooser(QtGui.QDialog):
         self.setLayout(self.lay)
 
     def updateGrid(self):
-        """update grid of currencies with zone titles"""
+        """
+        Update grid of currencies with zone titles
+        """
         widget = self.tabWidget.currentWidget().widget()
         hor = self.tabWidget.currentIndex()
         ver = self.sender().currentIndex()
@@ -473,7 +517,9 @@ class Chooser(QtGui.QDialog):
         v_layout.addStretch(1)
 
     def fillGrid(self, hor, ver, zones):
-        """creating grid"""
+        """
+        Creating grid of rates
+        """
         grid_new = QtGui.QGridLayout()
         row = 0
         col = 0
@@ -494,10 +540,13 @@ class Chooser(QtGui.QDialog):
                 grid_new.addWidget(btn, row, col, 1, 1)
             row = 0
             col += 1
+
         return grid_new
 
     def addRate(self):
-        """action when clicked button"""
+        """
+        Action when button is clicked [rate is selected]
+        """
         name = self.sender().text()
         title = self.sender().toolTip()
         href = self.sender().objectName()
@@ -507,21 +556,26 @@ class Chooser(QtGui.QDialog):
         self.picked = Economic({'href': href,
                                 'title': title,
                                 'name': name})
-        self.p.emit()
+        self.selected.emit()
 
     def updateDataBase(self):
+        """
+        Action when button 'Update' triggered
+        """
         if not siteOn():
-            _ = QtGui.QMessageBox.information(self,
-                                              'Message',
-                                              'No internet connection',
-                                              QtGui.QMessageBox.Ok)
+            _ = QtGui.QMessageBox.information(
+                    self,
+                    'Message',
+                    'No internet connection',
+                    QtGui.QMessageBox.Ok)
             return
 
-        reply = QtGui.QMessageBox.question(self,
-                                           'Message',
-                                           'Base is empty. Update? (takes 5-10 mins)', 
-                                           QtGui.QMessageBox.Yes | QtGui.QMessageBox.No, 
-                                           QtGui.QMessageBox.No)
+        reply = QtGui.QMessageBox.question(
+                    self,
+                    'Message',
+                    'Base is empty. Update? (takes 5-10 mins)',
+                    QtGui.QMessageBox.Yes | QtGui.QMessageBox.No,
+                    QtGui.QMessageBox.No)
         if reply == QtGui.QMessageBox.Yes:
             uc = UpdateChooser()
             self.close()
@@ -533,7 +587,11 @@ class Chooser(QtGui.QDialog):
 
 
 class WorkThread(QtCore.QThread):
-    """handles loading new rates"""
+    """
+    Class for creating thread when the grid is updated
+    Doesn't get main UI stuck
+    """
+
     punched = QtCore.pyqtSignal(str)
     signal_done = QtCore.pyqtSignal(list)
 
@@ -561,7 +619,7 @@ class WorkThread(QtCore.QThread):
         sleep(1)
         if DEBUG:
             print("Parser finished")
-            print(BASE)
+        print(BASE)
         d = DataBase(BASE)
         d.clean()
         self.punched.emit("Database cleaned")
@@ -573,16 +631,26 @@ class WorkThread(QtCore.QThread):
 
 
 class UpdateChooser(QtGui.QDialog):
-
+    """
+    Class for updating grid if something new appeared
+    """
     def __init__(self):
+        """
+        Initialize progress bar and workthread
+        """
         super(UpdateChooser, self).__init__()
         self.initUI()
         self.retranslateUI()
         self.task = WorkThread()
+        # self.task.signal_done.connect(self.close)
+        # self.task.signal_done.connect(self.task.terminate)
         self.task.signal_done.connect(self.recreateChooser)
         self.startTask()
 
     def initUI(self):
+        """
+        Construct simple UI - progressbar and text
+        """
         layout = QtGui.QVBoxLayout()
         self.label = QtGui.QLabel()
         self.progressBar = QtGui.QProgressBar()
@@ -592,18 +660,31 @@ class UpdateChooser(QtGui.QDialog):
         self.setLayout(layout)
 
     def retranslateUI(self):
+        """
+        Set texts for buttons/labels
+        """
         self.setWindowTitle(self.tr("Update"))
-        self.label.setText(self.tr("Retrieving data. This can take up for 5-10 minutes"))
+        self.label.setText(
+            self.tr(
+                "Retrieving data. This can take up for 5-10 minutes"))
 
     def startTask(self):
+        """
+        Start workthread
+        """
         self.task.punched.connect(self.onProgress)
         self.task.start()
 
     def onProgress(self, i):
+        """
+        On every step of workthread change text of main label
+        """
         self.label.setText(i)
 
     def recreateChooser(self, i):
-        """updating Chooser"""
+        """
+        Recreate and show a Chooser
+        """
         self.close()
         self.task.terminate()
         c = Chooser(i)
@@ -611,8 +692,17 @@ class UpdateChooser(QtGui.QDialog):
 
 
 class SysTrayIcon(QtGui.QSystemTrayIcon):
-    """system tray class"""
+    """
+    System Tray Icon class
+    """
     def __init__(self, parent=None):
+        """
+        Initialize system tray
+            :a - array
+            :title - title of systray
+            :timer - timer for update
+            :loop() - main loop for update
+        """
         super(SysTrayIcon, self).__init__()
         self.a = []
         self.title = ""
@@ -626,7 +716,10 @@ class SysTrayIcon(QtGui.QSystemTrayIcon):
         self.loop()
 
     def initUI(self):
-        """initializing UI of system tray"""
+        """
+        Construct UI of system tray
+        """
+        # trayIcon.showMessage("Биржа", strftime("%H"+":"+"%M"+":"+"%S"), 1000)
         self.menu = QtGui.QMenu()
         self.menu.addSeparator()
         self.time = QtGui.QAction(self)
@@ -642,13 +735,19 @@ class SysTrayIcon(QtGui.QSystemTrayIcon):
         self.setContextMenu(self.menu)
 
     def retranslateUI(self):
+        """
+        Set texts for actions of system tray
+        """
         self.setIcon(QtGui.QIcon(SYS_TRAY))
         self.update.setIconText("Add currency")
         self.default.setIconText("Default")
         self.exitAction.setIconText(self.tr("Exit"))
         self.title = self.tr("Exchange")
-
+        
     def initActions(self):
+        """
+        Initialize actions of system tray
+        """
         self.activated.connect(self.handleClick)
         self.time.triggered.connect(self.loop)
         self.update.triggered.connect(self.add_currency)
@@ -656,7 +755,9 @@ class SysTrayIcon(QtGui.QSystemTrayIcon):
         self.exitAction.triggered.connect(self.closeEvent)
 
     def setDefaultTray(self):
-        """set default 3 rates"""
+        """
+        Set default 3 rates
+        """
         for i in self.a:
             self.menu.removeAction(self.menu.actions()[0])
             if DEBUG:
@@ -665,7 +766,9 @@ class SysTrayIcon(QtGui.QSystemTrayIcon):
         self.loop()
 
     def handleClick(self, reason):
-        """correct right click in Windows"""
+        """
+        Correct right click on Window
+        """
         if reason == QtGui.QSystemTrayIcon.MiddleClick:
             self.closeEvent()
         elif reason == QtGui.QSystemTrayIcon.Trigger:
@@ -678,6 +781,9 @@ class SysTrayIcon(QtGui.QSystemTrayIcon):
             self.contextMenu().show()
 
     def addAction(self, i):
+        """
+        Add actions to system tray
+        """
         if DEBUG:
             print("New rate added to systray")
         self.a.append(i)
@@ -700,7 +806,11 @@ class SysTrayIcon(QtGui.QSystemTrayIcon):
         self.loop()
 
     def deleteAction(self):
-        print(self.sender().parent())
+        """
+        Delete actions from system tray
+        """
+        if DEBUG:
+            print(self.sender().parent())
         self.menu.removeAction(self.sender().parent())
         for i in self.a:
             if i.name in self.sender().parent().text():
@@ -708,12 +818,18 @@ class SysTrayIcon(QtGui.QSystemTrayIcon):
             print(len(self.a))
 
     def loadDefault(self):
+        """
+        Load default rates to system tray and drop table
+        """
         with sqlite3.connect('rates.db') as conn:
             conn.execute("DROP TABLE IF EXISTS Rates")
             conn.commit()
         self.a = [Economic(i) for i in MAS]
 
     def loadNotDefault(self):
+        """
+        Load previously saved rates to system tray
+        """
         with sqlite3.connect(BASE_RATES) as conn:
             titles = conn.execute("SELECT Title FROM Rates").fetchall()
             hrefs = conn.execute("SELECT Href FROM Rates").fetchall()
@@ -724,10 +840,13 @@ class SysTrayIcon(QtGui.QSystemTrayIcon):
                    "title": t[0],
                    "name": n[0]}
             self.a.append(Economic(mas))
-
-        print("Loaded not default")
+        if DEBUG:
+            print("Loaded not default")
 
     def saveNewRates(self):
+        """
+        Save new rates (if we added some new)
+        """
         with sqlite3.connect(BASE_RATES) as conn:
             with open(SCHEMA_RATES) as f:
                 schema = f.read()
@@ -735,42 +854,48 @@ class SysTrayIcon(QtGui.QSystemTrayIcon):
             conn.commit()
             for i in self.a:
                 conn.execute(
-                    '''
-                    INSERT INTO Rates(Title, Href, Name) VALUES(?, ?, ?)
-                    ''',
-                    (i.title, i.href, i.name))
+                    "INSERT INTO Rates(Title, Href, Name) VALUES(?, ?, ?)",
+                    (i.title, i.href, i.name)
+                    )
             conn.commit()
-        print("Saved new rates")
+        if DEBUG:
+            print("Saved new rates")
 
     def initList(self, default=False):
         if default:
             self.loadDefault()
         else:
             try:
-                print("Try")
+                if DEBUG:
+                    print("Try")
                 self.loadNotDefault()
             except:
-                print("Fuck you!")
+                if DEBUG:
+                    print("No luck!")
                 self.loadDefault()
 
         for i in self.a:
-            print(i)
+            if DEBUG:
+                print(i)
             action = QtGui.QAction(self)
             action.setObjectName(i.href)
             action.setText(i.value)
             action.setToolTip(i.title)
             action.triggered.connect(self.openLink)
-
+            # self.menu.addAction(action)
             old = self.menu.actions()[0]
             self.menu.insertAction(old, action)
 
     def loop(self):
-        """infinite loop until app closed"""
-        # stop timer if active
+        """
+        Infitine main loop
+        """
+        # prevent earlier start of timer
         if self.timer.isActive():
             self.timer.stop()
         for c, w in zip(self.a, self.menu.actions()):
-            print(w.text())
+            if DEBUG:
+                print(w.text())
             value = c._string()
             if not value:
                 continue
@@ -785,6 +910,9 @@ class SysTrayIcon(QtGui.QSystemTrayIcon):
         self.timer.start(UPDATE_TIME)
 
     def add_currency(self):
+        """
+        Add new rate to system tray
+        """
         d = DataBase(BASE)
         l = d.load()
         self.c = Chooser(l)
@@ -792,10 +920,15 @@ class SysTrayIcon(QtGui.QSystemTrayIcon):
         self.c.show()
 
     def openLink(self):
+        """
+        Open page with currency
+        """
         webbrowser.open(self.sender().objectName())
 
     def closeEvent(self):
-        """make sure if really wanna quit"""
+        """
+        Handle close of system tray
+        """
         q = QtGui.QWidget()
         q.setWindowIcon(QtGui.QIcon(EXIT))
         msg = QtGui.QMessageBox()
@@ -815,10 +948,17 @@ class SysTrayIcon(QtGui.QSystemTrayIcon):
 
 
 class ExitWindow(QtGui.QDialog):
-    """manual exitwindow"""
+    """
+    Class for exit dialog
+    """
+    # signal to handle save/not save rates, currently present in tray
     saved = QtCore.pyqtSignal()
 
     def __init__(self, new):
+        """
+        Initialize exit window
+            :new - True if rates are more than 3
+        """
         super(ExitWindow, self).__init__()
         self.new = new
         self.initUI()
@@ -826,6 +966,9 @@ class ExitWindow(QtGui.QDialog):
         self.initActions()
 
     def initUI(self):
+        """
+        Construct UI for Exit dialog
+        """
         layout = QtGui.QVBoxLayout()
         but_lay = QtGui.QHBoxLayout()
         self.label = QtGui.QLabel()
@@ -841,6 +984,9 @@ class ExitWindow(QtGui.QDialog):
         self.setLayout(layout)
 
     def retranslateUI(self):
+        """
+        Set texts for buttons/labels of Exit dialog
+        """
         self.setWindowIcon(QtGui.QIcon(EXIT))
         self.setWindowTitle(self.tr("Quit"))
         self.label.setText(self.tr("Are you sure to quit?"))
@@ -849,21 +995,30 @@ class ExitWindow(QtGui.QDialog):
         self.no.setText(self.tr("No"))
 
     def exit(self):
+        """
+        Exit method
+        """
         if self.checkbox.isChecked():
             self.saved.emit()
         QtGui.QApplication.quit()
 
     def initActions(self):
+        """
+        Initialize actions for buttons of Exit dialog
+        """
         self.yes.clicked.connect(self.exit)
         self.no.clicked.connect(self.close)
 
 
 def main():
     app = QtGui.QApplication(sys.argv)
-    # prevent closing on any window
+    # prevent closing systray after closing any window
     app.setQuitOnLastWindowClosed(False)
     trayIcon = SysTrayIcon()
     trayIcon.show()
+    """
+    Show message "Exchange + time" when system tray is run
+    """
     trayIcon.showMessage(trayIcon.title,
                          strftime("%H"+":"+"%M"+":"+"%S"),
                          1000)
