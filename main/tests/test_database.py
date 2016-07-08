@@ -3,7 +3,7 @@ import unittest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from databases import Base, Currency
+from databases import Base, Currency, Region
 
 
 class TestCurrency(unittest.TestCase):
@@ -13,24 +13,27 @@ class TestCurrency(unittest.TestCase):
     engine = create_engine('sqlite:///:memory:')
     Session = sessionmaker(bind=engine)
     session = Session()
-    TEST_CURR_1 = Currency(1, "US Dollar", "USD", 12)
-    TEST_CURR_2 = Currency(1, "Australian Dollar", "AUD", 11)
 
     def setUp(self):
         """
         """
         Base.metadata.create_all(self.engine)
-        curr1 = self.TEST_CURR_1
-        curr2 = self.TEST_CURR_2
-        curr1.connections.append(curr2)
-        self.session.add(curr1)
-        self.session.add(curr2)
+        self.region = Region(number=1, name="Asia")
+        self.curr1 = Currency(name="US Dollar",
+                              short_name="USD",
+                              region_id=self.region.id)
+        self.curr2 = Currency(name="Australian Dollar",
+                              short_name="AUD",
+                              region_id=self.region.id)
+        self.curr1.right_currencies.append(self.curr2)
+        self.session.add(self.curr1)
+        self.session.add(self.curr2)
         self.session.commit()
 
     def tearDown(self):
         Base.metadata.drop_all(self.engine)
 
     def test_query_currency(self):
-        expected = [self.TEST_CURR_1, self.TEST_CURR_2]
+        expected = [self.curr1, self.curr2]
         result = self.session.query(Currency).all()
         self.assertEqual(result, expected)
