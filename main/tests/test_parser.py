@@ -1,5 +1,5 @@
 from unittest import TestCase
-from main import *
+from investing import *
 
 
 class TestParser(TestCase):

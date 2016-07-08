@@ -7,7 +7,10 @@ association_table = Table('connections', Base.metadata,
     Column('currency_id', Integer, ForeignKey('currency.id')),
     Column('connnection_id', Integer, ForeignKey('right.id'))
 )
+
+
 class Currency(Base):
     """
     Currency base
     """
+    pass
