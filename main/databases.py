@@ -13,4 +13,5 @@ class Currency(Base):
     """
     Currency base
     """
-    pass
+    __tablename__ = "currencies"
+    id = Column(Integer, primary_key=True)
