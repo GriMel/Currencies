@@ -1,4 +1,5 @@
 from unittest import TestCase
+import dryscrape
 from investing import *
 
 
@@ -27,6 +28,35 @@ class TestParser(TestCase):
         proper_currency2 = "Australian Dollar"
         currency2 = get_second_currency(currency_rate, currency1)
         self.assertEqual(currency2, proper_currency2)
+
+
+class TestDryScrape(self):
+    """
+    Class for testing dryscrape
+    """
+    URL = "http://www.investing.com/webmaster-tools/technical-charts"
+
+    def __init__(self, *args, **kwargs):
+        super(TestDryScrape, self).__init__(*args, **kwargs)
+        self.session = dryscrape.Session
+        self.init_session()
+
+    def init_session(self):
+        """
+        """
+        loaded = False
+        while not loaded:
+            try:
+                self.session.visit(self.URL)
+                loaded = True
+            except:
+                pass
+
+    def test_dryscrape_success(self):
+        """
+        Dryscrape should finally return valid information
+        """
+        pass
 
 
 if __name__ == '__main__':
