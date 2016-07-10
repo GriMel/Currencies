@@ -1,0 +1,6 @@
+dryscrape
+lxml
+SQLALchemy
+requests
+testfixtures
+xvfbwrapper
