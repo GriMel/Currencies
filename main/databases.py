@@ -20,6 +20,7 @@ class Currency(Base):
     """
     __tablename__ = "currencies"
     id = Column(Integer, primary_key=True)
+    investing_id = Column(Integer)
     name = Column(String)
     short_name = Column(String(3))
     region_id = Column(ForeignKey('regions.id'))
@@ -39,3 +40,14 @@ class Region(Base):
     id = Column(Integer, primary_key=True)
     number = Column(Integer)
     name = Column(String)
+
+
+class CurrencyRate(Base):
+    """
+    Currency rates base
+    """
+    __tablename__ = "rates"
+    id = Column(Integer, primary_key=True)
+    currency_from = Column(ForeignKey('currencies.id'))
+    currency_to = Column(ForeignKey('currencies.id'))
+    graph_id = Column(Integer)
