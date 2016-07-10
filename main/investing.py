@@ -7,6 +7,8 @@ import dryscrape
 from bs4 import BeautifulSoup as bs
 from time import sleep
 from itertools import product
+from log_conf import setLogging
+
 
 HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 6.1;' +
@@ -138,19 +140,62 @@ def create_final_table(array):
                 currency2_id = "a"
 
 
-def get_curr_rate_id(currency1, currency2):
+class GraphIDScraper():
     """
+    Special class for handling dryscrape's session and
+    retrieve a bunch of ids with the same session.
     """
-    chart_url = "http://www.investing.com/webmaster-tools/technical-charts"
-    session = dryscrape.Session()
-    loaded = False
-    # make tries until page is loaded
-    while not loaded:
-        try:
-            session.visit(char_url)
-            loaded = True
-        except:
-            pass
+    URL = "http://www.investing.com/webmaster-tools/technical-charts"
+
+    def __init__(self):
+        """
+        Set url and initialize session
+        """
+        self.session = None
+        self.logger = setLogging("id_scraper")
+        self.init_session()
+
+    def init_session(self):
+        """
+        """
+        loaded = False
+        self.session = dryscrape.Session()
+        self.logger.debug("Dryscrape session initialized")
+        while not loaded:
+            try:
+                self.session.visit(self.URL)
+                loaded = True
+            except:
+                pass
+        approve = self.session.xpath('//input[@id="terms_and_conds"]')[0]
+        approve.left_click()
+        self.logger("Site visited")
+
+    def get_graph_id(self, currency_1, currency2):
+        """
+        Return graph_id for every pair of currencies
+        """
+        input_field = self.session.xpath('//input[@id="searchTextWmtTvc"]')[0]
+        text = currency_1.short_name + currency2.short_name
+        input_field.set(text)
+        self.logger.debug("Set {} for input field".format(text))
+
+        # Wait until popup is shown
+        sleep(1)
+        element = self.session.xpath('//td[@class="first symbolName"]')[0]
+        element.click()
+        self.logger.debug("Selected element from popup")
+
+        submit = self.session.xpath('//a[@id="the_submit_button"]')[0]
+        submit.left_click()
+        self.logger.debug("HTML generated")
+
+        # Start retrieving id
+        txt = session.xpath('//textarea[@id="output"]')[0]
+        soup = bs(txt.value(), "lxml")
+        src = soup.find('iframe', False)['src']
+        element_id = src.split('&')[0].split('=')[-1]
+        return 2
 
 
 
