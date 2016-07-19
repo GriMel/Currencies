@@ -1,15 +1,20 @@
+# !/usr/bin/env python
+# -*- coding: utf-8 -*-
+"""
+Module for configuring logger
+"""
 import logging
 from os import path
 
 
 def setLogger(level=logging.DEBUG,
               name="my_logger",
-              log_file=join("src", "log.out")):
+              log_file=path.join("src", "log.out")):
     """
     Default logger for all classes/modules
     If not DEBUG - don't show to console anything.
     """
-    DEBUG = False
+    DEBUG = True
 
     logger = logging.getLogger(name)
     logger.setLevel(level)
