@@ -103,7 +103,7 @@ def list_of_soups(url, end):
                 raise
             yield currency_id, soup
         except:
-            pass
+            print("Exception triggered")
 
 
 def collect_curr_soups():
@@ -111,11 +111,15 @@ def collect_curr_soups():
     """
     url = 'http://www.investing.com/currencies/Service/currency?currency_ID={0}'
     array = []
-    for currency_id, soup in list_of_soups(url, 3):
-        cur_rates = [row['title'] for row in soup('a')[:3]]
-        currency_name = findCommon(cur_rate1, cur_rate2)
-        short_names = [row.text for row in soup(a)[:3]]
-        currency_short_name = findCommon(*short_names, splitter='/')
+    logger = setLogger(name="collector")
+    for currency_id, soup in list_of_soups(url, 200):
+        cur_rates = [row['title'] for row in soup('a')][:2]
+        logger.debug(cur_rates)
+        currency_name = find_common(*cur_rates, splitter=' ')
+        short_names = [row.text for row in soup('a')[:2]]
+        logger.debug(short_names)
+        logger.debug(currency_id)
+        currency_short_name = find_common(*short_names, splitter='/')
         array.append({'currency_id': currency_id,
                       'currency_name': currency_name,
                       'currency_short_name': currency_short_name,
