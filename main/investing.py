@@ -6,9 +6,10 @@ import re
 import dryscrape
 from bs4 import BeautifulSoup as bs
 from time import sleep
-from itertools import product
-from log_conf import setLogging
-
+from itertools import product, chain
+from logger import setLogger
+from databases import Base, engine, Currency, get_or_create
+from sqlalchemy.orm import sessionmaker
 
 HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 6.1;' +
