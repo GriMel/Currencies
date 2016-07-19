@@ -1,8 +1,9 @@
-from sqlalchemy import Table, Column, Integer, String, ForeignKey
+from sqlalchemy import create_engine, Table, Column, Integer, String, ForeignKey
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, backref
 
 Base = declarative_base()
+engine = create_engine('sqlite:///userdb.sqlite3')
 
 currency_to_currency = Table('currency_to_currency',
                              Base.metadata,
@@ -14,32 +15,30 @@ currency_to_currency = Table('currency_to_currency',
                                     primary_key=True))
 
 
+def get_or_create(session, model, **kwargs):
+    instance = session.query(model).filter_by(**kwargs).first()
+    if instance:
+        return instance
+    else:
+        instance = model(**kwargs)
+        session.add(instance)
+        session.commit()
+        return instance
+
 class Currency(Base):
     """
     Currency base
     """
     __tablename__ = "currencies"
     id = Column(Integer, primary_key=True)
-    investing_id = Column(Integer)
     name = Column(String)
     short_name = Column(String(3))
-    region_id = Column(ForeignKey('regions.id'))
     right_currencies = relationship(
         "Currency",
         secondary=currency_to_currency,
         primaryjoin=id == currency_to_currency.c.left_currency_id,
         secondaryjoin=id == currency_to_currency.c.right_currency_id,
         backref="left_currencies")
-
-
-class Region(Base):
-    """
-    Region base
-    """
-    __tablename__ = "regions"
-    id = Column(Integer, primary_key=True)
-    number = Column(Integer)
-    name = Column(String)
 
 
 class CurrencyRate(Base):
