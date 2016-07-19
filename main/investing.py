@@ -36,28 +36,32 @@ def checkRegions():
         }
 
 
-def findCommon(string1, string2, string3, splitter=None):
+def getCombinations(iterable):
     """
-    Function to retrieve the current processing currency
+    Changed version of recipe's powerset for product
     """
-    set1 = set(string1.split(splitter))
-    set2 = set(string2.split(splitter))
-    set3 = set(string3.split(splitter))
-    common_words = set1.intersection(set2).intersection(set3)
-    if splitter == ' ':
-        return " ".join(common_words)
-    else:
+    s = list(iterable)
+    return chain.from_iterable(product(s, repeat=r) for r in range(len(s)+1))
 
-        count_of_words = len(common_words)
-        # Idea
-        # ('A', 'B')
-        # product generates ('A', 'A'), ('B', 'B')
-        # By calling set(combination) we leave only unique combinations
-        combinations = [combination for combination in
-                        product(common_words, repeat=count_of_words)
-                        if len(set(combination)) == count_of_words]
-        # Retrieve the currency by checking exact
-        # string in string1
+
+def find_common(string1, string2, splitter):
+    """
+    Returns common value from two strings
+    """
+    string = splitter
+    match = ""
+    index = 0
+    # method #1
+    while string in string2:
+        match = string
+        index += 1
+        string = " ".join(string1.split(splitter)[:index])
+    # method #2
+    if not(string2.startswith(match) or string2.endswith(match)):
+        set1 = set(string1.split(splitter))
+        set2 = set(string2.split(splitter))
+        common_words = set1.intersection(set2)
+        combinations = getCombinations(common_words)
         for comb in combinations:
             string = " ".join(comb)
             if re.search(string, string1):
