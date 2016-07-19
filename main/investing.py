@@ -64,8 +64,31 @@ def find_common(string1, string2, splitter):
         combinations = getCombinations(common_words)
         for comb in combinations:
             string = " ".join(comb)
-            if re.search(string, string1):
-                return string
+            if string2.startswith(string) or string2.endswith(string):
+                match = string
+    return match
+
+
+def get_currency_name_old(short_name):
+    """
+    Returns currency name from short name
+    """
+    url = "http://www.xe.com/currency/{}"
+    response = requests.get(url.format(short_name), headers=HEADERS).content
+    soup = bs(response, "lxml")
+    return soup.h1.string.split(" - ")[1]
+
+
+def get_names_from_rate(rate):
+    """
+    """
+    url = "http://www.investing.com/currencies/{}"
+    value = re.sub("/", "-", rate)
+    response = requests.get(url.format(value), headers=HEADERS).content
+    soup = bs(response, "lxml")
+    name1 = soup.select('div.right > div > span')[5].text
+    name2 = soup.select('div.right > div > span')[7].text
+    return name1, name2
 
 
 def list_of_soups(url, end):
@@ -111,11 +134,11 @@ def get_second_currency(currency_rate, currency1):
     if currency_rate.startswith(currency1):
         currency2 = currency_rate.lstrip(currency1)
     else:
-        currency2 = curreny_rate.rstrip(currency1)
+        currency2 = currency_rate.rstrip(currency1)
     return currency2
 
 
-def get_second_short_name(curency_rate_short, short_name1):
+def get_second_short_name(currency_rate_short, short_name1):
     """
     """
     if currency_rate_short.startswith(short_name1):
@@ -141,8 +164,60 @@ def create_final_table(array):
             region_name = ul.span.string
             for a in ul('a'):
                 curr_rate_name = a['title']
-                currency2_name = get_second_currency(cur_rate_name)
+                currency2_name = get_second_currency(cur_rate_name, currency_name)
                 currency2_id = "a"
+
+
+def collect_short_names(limit):
+    """
+    """
+    array = []
+    logger = setLogger(name="short_names")
+    url = 'http://www.investing.com/currencies/Service/currency?currency_ID={0}'
+    for currency_id, soup in list_of_soups(url, 200):
+        for row in soup('a'):
+            short_name = row.text
+            if short_name.startswith("/") or short_name.endswith("/"):
+                continue
+            array.append(row.text)
+            logger.debug("%s %s" %(row.text, currency_id))
+    return array
+
+
+def collect_names(array):
+    """
+    """
+    logger = setLogger(name="hast_table")
+    hash_table = {}
+    for index, short_name in enumerate(array):
+        short1, short2 = short_name.split("/")
+        if short1 not in hash_table or short2 not in hash_table:
+            name1, name2 = get_names_from_rate(short_name)
+        if short1 not in hash_table:
+            hash_table[short1] = name1
+            logger.debug("%s %s hashed [%s]" % (short1, name1, index))
+        if short2 not in hash_table:
+            hash_table[short2] = name2
+            logger.debug("%s %s hashed [%s]" % (short2, name2, index))
+    return hash_table
+
+
+def fill_table(array, hash_table):
+    """
+    Create SQLAlchemy table
+    """
+    Base.metadata.create_all(engine)
+    Session = sessionmaker(bind=engine)
+    session = Session()
+    for row in array:
+        short1, short2 = row.split("/")
+        name1, name2 = hash_table[short1], hash_table[short2]
+        curr1 = get_or_create(session, Currency, name=name1, short_name=short1)
+        curr2 = get_or_create(session, Currency, name=name2, short_name=short2)
+        curr1.right_currencies.append(curr2)
+        session.add(curr1)
+        session.add(curr2)
+    session.commit()
 
 
 class GraphIDScraper():
