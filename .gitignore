@@ -4,6 +4,7 @@
 .settings/
 *.ini
 *.db
+*.sqlite3
 build/
 dist/
 *.spec
