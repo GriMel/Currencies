@@ -1,14 +1,13 @@
 # -*- coding: utf-8 -*-
 # !/usr/bin/env
 
+import grequests
 import requests
-import re
-import dryscrape
 from bs4 import BeautifulSoup as bs
-from time import sleep
-from itertools import product, chain
+from lxml import html
 from logger import setLogger
-from databases import Base, engine, Currency, get_or_create
+from databases import Base, Currency, get_or_create
+from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 HEADERS = {
@@ -20,285 +19,145 @@ HEADERS = {
 }
 
 
-def checkRegions():
+def get_responses(url, limit):
     """
-    Check if something new appeared
-    Have an ideal list and compare to it
     """
-    url = "http://www.investing.com/currencies/Service/region?region_ID={}&currency_ID=false"
-    regions = {
-        "Majors": "majors",
-        "Asia/Pasific": 4,
-        "Americas": 1,
-        "Africa": 8,
-        "Middle East": 7,
-        "Europe": 6
-        }
+    rs = (grequests.get(url.format(i),
+                        headers=HEADERS) for i in range(limit))
+    responses = grequests.map(rs)
+    return responses
 
 
-def getCombinations(iterable):
+def collect_soups(responses):
     """
-    Changed version of recipe's powerset for product
     """
-    s = list(iterable)
-    return chain.from_iterable(product(s, repeat=r) for r in range(len(s)+1))
+    soups = []
+    for response in responses:
+        soups.append(bs(response.content, "lxml"))
+    return soups
 
 
-def find_common(string1, string2, splitter):
+def collect_short_rate_names(soups):
     """
-    Returns common value from two strings
     """
-    string = splitter
-    match = ""
-    index = 0
-    # method #1
-    while string in string2:
-        match = string
-        index += 1
-        string = " ".join(string1.split(splitter)[:index])
-    # method #2
-    if not(string2.startswith(match) or string2.endswith(match)):
-        set1 = set(string1.split(splitter))
-        set2 = set(string2.split(splitter))
-        common_words = set1.intersection(set2)
-        combinations = getCombinations(common_words)
-        for comb in combinations:
-            string = " ".join(comb)
-            if string2.startswith(string) or string2.endswith(string):
-                match = string
-    return match
+    short_rate_names = []
+    for soup in soups:
+        if not soup('a'):
+            continue
+        for row in soup('a'):
+            name = row.text
+            # Investing sometimes returns '/RUB' or 'USD/'
+            if name.startswith("/") or name.endswith("/"):
+                continue
+            short_rate_names.append(name)
+    return short_rate_names
 
 
-def get_currency_name_old(short_name):
+def prepare_for_parse(short_rate_names):
     """
-    Returns currency name from short name
+    Given an array of currency pairs returns
+    array of unique pairs
     """
-    url = "http://www.xe.com/currency/{}"
-    response = requests.get(url.format(short_name), headers=HEADERS).content
-    soup = bs(response, "lxml")
-    return soup.h1.string.split(" - ")[1]
+    unique_short_rate_names = []
+    to_parse = []
+    for row in short_rate_names:
+        append = False
+        first, second = row.split("/")
+        if first not in unique_short_rate_names:
+            unique_short_rate_names.append(first)
+            append = True
+        if second not in unique_short_rate_names:
+            unique_short_rate_names.append(second)
+            append = True
+        if append:
+            to_parse.append(row)
+    return to_parse
 
 
-def get_names_from_rate(rate):
+def get_short_rate_name_responses(short_rate_names):
     """
     """
     url = "http://www.investing.com/currencies/{}"
-    value = re.sub("/", "-", rate)
-    response = requests.get(url.format(value), headers=HEADERS).content
-    soup = bs(response, "lxml")
-    name1 = soup.select('div.right > div > span')[5].text
-    name2 = soup.select('div.right > div > span')[7].text
-    return name1, name2
+    values = [short_name.replace("/", "-") for short_name in short_rate_names]
+    rs = (grequests.get(url.format(value), headers=HEADERS)
+          for value in values)
+    responses = grequests.map(rs)
+    return responses
 
 
-def list_of_soups(url, end):
+def return_proper_name(tree, bad_name, other_name):
     """
+    Check if name, retrieved from tree doesn't end up with '...'
+    Otherwise retrieves it from tree
     """
-    for currency_id in range(1, end):
-        try:
-            response = requests.get(url=url.format(currency_id),
-                                    headers=HEADERS)
-            soup = bs(response.text, "lxml")
-            if not soup('a'):
-                raise
-            yield currency_id, soup
-        except:
-            print("Exception triggered")
-
-
-def collect_curr_soups():
-    """
-    """
-    url = 'http://www.investing.com/currencies/Service/currency?currency_ID={0}'
-    array = []
-    logger = setLogger(name="collector")
-    for currency_id, soup in list_of_soups(url, 200):
-        cur_rates = [row['title'] for row in soup('a')][:2]
-        logger.debug(cur_rates)
-        currency_name = find_common(*cur_rates, splitter=' ')
-        short_names = [row.text for row in soup('a')[:2]]
-        logger.debug(short_names)
-        logger.debug(currency_id)
-        currency_short_name = find_common(*short_names, splitter='/')
-        array.append({'currency_id': currency_id,
-                      'currency_name': currency_name,
-                      'currency_short_name': currency_short_name,
-                      'soup': soup})
-    return array
-
-
-def get_second_currency(currency_rate, currency1):
-    """
-    Extracts currency name from currency rate
-    Example:
-        currency_rate:='Panamanian Balboa Australian Dollar'
-        currency1:='Australian Dollar'
-    We need to extract 'Panamian Balboa'
-    """
-    if currency_rate.startswith(currency1):
-        currency2 = currency_rate.lstrip(currency1)
+    title = tree.cssselect('h1')[0].text.split(" - ")[1]
+    part_name = bad_name.rstrip(" ...")
+    other_name = other_name.rstrip(" ...")
+    parts = title.split(part_name)
+    name = ""
+    if not parts[0]:
+        other_index = parts[1].find(other_name)
+        name = part_name + " " + parts[1][:other_index].strip(" ")
     else:
-        currency2 = currency_rate.rstrip(currency1)
-    return currency2
+        name = part_name + " " + parts[1].strip(" ")
+    return name
 
 
-def get_second_short_name(currency_rate_short, short_name1):
+def return_page_tree(currency_rate):
     """
+    Return tree of currency rate's page
+    :currency_rate - AUD/USD
     """
-    if currency_rate_short.startswith(short_name1):
-        short_name2 = currency_rate_short.lstrip(short_name1)
-    else:
-        short_name2 = currency_rate_short.rstrip(short_name1)
-    return short_name2
+    url = "http://www.investing.com/currencies/{}"
+    value = currency_rate.replace("/", "-")
+    response = requests.get(url.format(value), headers=HEADERS)
+    return html.fromstring(response.content)
 
 
-def create_final_table(array):
+def create_hash_table(responses, short_names):
     """
     """
-    currency_names = [currency['currency_name']
-                      for currency in array]
-    currency_short_names = [currency['currency_short_name']
-                            for currency in array]
-    for currency in array:
-        currency_name = currency['currency_name']
-        currency_short_name = currency['currency_short_name']
-        currency_id = currency['currency_id']
-        soup = currency['soup']
-        for ul in soup('ul'):
-            region_name = ul.span.string
-            for a in ul('a'):
-                curr_rate_name = a['title']
-                currency2_name = get_second_currency(cur_rate_name, currency_name)
-                currency2_id = "a"
-
-
-def collect_short_names(limit):
-    """
-    """
-    array = []
-    logger = setLogger(name="short_names")
-    url = 'http://www.investing.com/currencies/Service/currency?currency_ID={0}'
-    for currency_id, soup in list_of_soups(url, 200):
-        for row in soup('a'):
-            short_name = row.text
-            if short_name.startswith("/") or short_name.endswith("/"):
-                continue
-            array.append(row.text)
-            logger.debug("%s %s" %(row.text, currency_id))
-    return array
-
-
-def collect_names(array):
-    """
-    """
-    logger = setLogger(name="hast_table")
     hash_table = {}
-    for index, short_name in enumerate(array):
-        short1, short2 = short_name.split("/")
-        if short1 not in hash_table or short2 not in hash_table:
-            name1, name2 = get_names_from_rate(short_name)
-        if short1 not in hash_table:
-            hash_table[short1] = name1
-            logger.debug("%s %s hashed [%s]" % (short1, name1, index))
-        if short2 not in hash_table:
-            hash_table[short2] = name2
-            logger.debug("%s %s hashed [%s]" % (short2, name2, index))
+    for response, short_name in zip(responses, short_names):
+        tree = html.fromstring(response.content)
+        name1 = tree.cssselect('div.right > div > span')[5].text
+        name2 = tree.cssselect('div.right > div > span')[7].text
+        if name1.endswith("..."):
+            name1 = return_proper_name(tree, name1, name2)
+        if name2.endswith("..."):
+            name2 = return_proper_name(tree, name2, name1)
+        short_name1 = short_name.split("/")[0]
+        short_name2 = short_name.split("/")[1]
+        hash_table[short_name1] = name1
+        hash_table[short_name2] = name2
+        print("{} - {}".format(name1, short_name1))
+        print("{} - {}".format(name2, short_name2))
     return hash_table
 
 
-def fill_table(array, hash_table):
+def create_table(tablename, short_names, hash_table):
     """
     Create SQLAlchemy table
     """
+    table_engine = 'sqlite:///{}.sqlite3'
+    engine = create_engine(table_engine)
     Base.metadata.create_all(engine)
     Session = sessionmaker(bind=engine)
     session = Session()
-    for row in array:
+    for row in short_names:
         short1, short2 = row.split("/")
         name1, name2 = hash_table[short1], hash_table[short2]
         curr1 = get_or_create(session, Currency, name=name1, short_name=short1)
         curr2 = get_or_create(session, Currency, name=name2, short_name=short2)
         curr1.right_currencies.append(curr2)
         session.add(curr1)
-        session.add(curr2)
     session.commit()
-
-
-class GraphIDScraper():
-    """
-    Special class for handling dryscrape's session and
-    retrieve a bunch of ids with the same session.
-    """
-    URL = "http://www.investing.com/webmaster-tools/technical-charts"
-
-    def __init__(self):
-        """
-        Set url and initialize session
-        """
-        self.session = None
-        self.logger = setLogging("id_scraper")
-        self.init_session()
-
-    def init_session(self):
-        """
-        """
-        loaded = False
-        self.session = dryscrape.Session()
-        self.logger.debug("Dryscrape session initialized")
-        while not loaded:
-            try:
-                self.session.visit(self.URL)
-                loaded = True
-            except:
-                pass
-        approve = self.session.xpath('//input[@id="terms_and_conds"]')[0]
-        approve.left_click()
-        self.logger("Site visited")
-
-    def get_graph_id(self, currency_1, currency2):
-        """
-        Return graph_id for every pair of currencies
-        """
-        input_field = self.session.xpath('//input[@id="searchTextWmtTvc"]')[0]
-        text = currency_1.short_name + currency2.short_name
-        input_field.set(text)
-        self.logger.debug("Set {} for input field".format(text))
-
-        # Wait until popup is shown
-        sleep(1)
-        element = self.session.xpath('//td[@class="first symbolName"]')[0]
-        element.click()
-        self.logger.debug("Selected element from popup")
-
-        submit = self.session.xpath('//a[@id="the_submit_button"]')[0]
-        submit.left_click()
-        self.logger.debug("HTML generated")
-
-        # Start retrieving id
-        txt = session.xpath('//textarea[@id="output"]')[0]
-        soup = bs(txt.value(), "lxml")
-        src = soup.find('iframe', False)['src']
-        element_id = src.split('&')[0].split('=')[-1]
-        return 2
-
 
 
 def main():
     """
-    Main module for processing GUI
     """
-    # url = 'http://www.investing.com/currencies/Service/currency?region_ID={0}&currency_ID={1}
-    '''
-    for ul in soup('ul'):
-        region = {'region_name': ul.span.string}
-        if region not in regions:
-            regions.append(region)
-        for a in ul('a'):
-            cur_rate_link = a['href']
-            cur_rate_short = a['title']
-            cur_rate_full = a.text
-    '''
+    pass
 
 if __name__ == "__main__":
-
     main()
