@@ -1,9 +1,8 @@
-from sqlalchemy import create_engine, Table, Column, Integer, String, ForeignKey
+from sqlalchemy import Table, Column, Integer, String, ForeignKey
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, backref
 
 Base = declarative_base()
-engine = create_engine('sqlite:///userdb.sqlite3')
 
 currency_to_currency = Table('currency_to_currency',
                              Base.metadata,
