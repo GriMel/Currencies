@@ -91,7 +91,10 @@ def collect_soups(responses):
     """
     soups = []
     for response in responses:
-        soups.append(bs(response.content, "lxml"))
+        soup = (bs(response.content, "lxml"))
+        if not soup('a'):
+            continue
+        soups.append(soup)
     return soups
 
 
@@ -100,8 +103,6 @@ def collect_short_rate_names(soups):
     """
     short_rate_names = []
     for soup in soups:
-        if not soup('a'):
-            continue
         for row in soup('a'):
             name = row.text
             # Investing sometimes returns '/RUB' or 'USD/'
