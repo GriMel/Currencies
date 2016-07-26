@@ -1,17 +1,7 @@
-from sqlalchemy import Table, Column, Integer, String, ForeignKey
+from sqlalchemy import Column, Integer, String, ForeignKey, Boolean
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import relationship, backref
 
 Base = declarative_base()
-
-currency_to_currency = Table('currency_to_currency',
-                             Base.metadata,
-                             Column('left_currency_id',
-                                    ForeignKey('currencies.id'),
-                                    primary_key=True),
-                             Column('right_currency_id',
-                                    ForeignKey('currencies.id'),
-                                    primary_key=True))
 
 
 def get_or_create(session, model, **kwargs):
@@ -21,8 +11,8 @@ def get_or_create(session, model, **kwargs):
     else:
         instance = model(**kwargs)
         session.add(instance)
-        session.commit()
         return instance
+
 
 class Currency(Base):
     """
@@ -32,20 +22,30 @@ class Currency(Base):
     id = Column(Integer, primary_key=True)
     name = Column(String)
     short_name = Column(String(3))
-    right_currencies = relationship(
-        "Currency",
-        secondary=currency_to_currency,
-        primaryjoin=id == currency_to_currency.c.left_currency_id,
-        secondaryjoin=id == currency_to_currency.c.right_currency_id,
-        backref="left_currencies")
 
 
 class CurrencyRate(Base):
     """
     Currency rates base
     """
-    __tablename__ = "rates"
+    __tablename__ = "currency_rates"
     id = Column(Integer, primary_key=True)
     currency_from = Column(ForeignKey('currencies.id'))
     currency_to = Column(ForeignKey('currencies.id'))
     graph_id = Column(Integer)
+    url = Column(String)
+    default = Column(Boolean, default=False)
+    favored = Column(Boolean, default=True)
+
+
+class Commodity(Base):
+    """
+    Commodity base
+    """
+    __tablename__ = "commodities"
+    id = Column(Integer, primary_key=True)
+    name = Column(String)
+    url = Column(String)
+    graph_id = Column(Integer)
+    default = Column(Boolean, default=False)
+    favored = Column(Boolean, default=False)
