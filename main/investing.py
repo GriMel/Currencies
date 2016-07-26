@@ -228,17 +228,107 @@ def create_table(tablename, short_names, hash_table):
     for row in short_names:
         short1, short2 = row.split("/")
         name1, name2 = hash_table[short1], hash_table[short2]
-        curr1 = get_or_create(session, Currency, name=name1, short_name=short1)
-        curr2 = get_or_create(session, Currency, name=name2, short_name=short2)
-        curr1.right_currencies.append(curr2)
-        session.add(curr1)
+        curr1 = get_or_create(session,
+                              Currency,
+                              name=name1,
+                              short_name=short1)
+        curr2 = get_or_create(session,
+                              Currency,
+                              name=name2,
+                              short_name=short2)
+        url = "http:/investing.com/currencies/{}-{}".format(
+            short1.lower(), short2.lower())
+        cur_rate = get_or_create(session,
+                                 CurrencyRate,
+                                 currency_from=curr1.id,
+                                 currency_to=curr2.id,
+                                 url=url)
     session.commit()
+
+
+def save_graph_id(response, session, curr1, curr2):
+    """
+    """
+    curr1_row = session.query(Currency).\
+        filter(Currency.short_name == curr1).\
+        first()
+    curr2_row = session.query(Currency).\
+        filter(Currency.short_name == curr2).\
+        first()
+    curr_rate_row = session.query(CurrencyRate).\
+        filter(CurrencyRate.currency_from == curr1_row.id).\
+        filter(CurrencyRate.currency_to == curr2_row.id).first()
+    string = response.decode('utf-8')
+    try:
+        dictionary = json.loads(string)[0]
+        curr_rate_row.graph_id = int(dictionary['ticker'])
+    except:
+        session.delete(curr_rate_row)
+
+
+def query(session, curr1, curr2):
+    """
+    """
+    text = curr1 + curr2
+    url = 'http://tvc.forexprostools.com/'\
+          '8ffb9c48396938f5fac698799da1cef9/'\
+          '1469440167/1/1/7/search?limit=30&'\
+          'query={}&type=&exchange='.format(text)
+    get = treq.get(url, headers=HEADERS)
+    get.addCallback(treq.content)
+    get.addCallback(save_graph_id, session, curr1, curr2)
+    return get
+
+
+def parallel(session, iterable, count):
+    """
+    """
+    values = [i.split("/") for i in iterable]
+    coop = task.Cooperator()
+    work = (query(session, curr1, curr2) for curr1, curr2 in values)
+    return defer.DeferredList(coop.coiterate(work) for i in range(count))
+
+
+def graph_id_parser(reactor, curr_short_rate_names):
+    """
+    """
+    table_engine = 'sqlite:///userdb.sqlite3'
+    engine = create_engine(table_engine)
+    Session = sessionmaker(bind=engine)
+    session = Session()
+    finished = parallel(session, curr_short_rate_names, 1000)
+    finished.addCallback(print)
+    session.commit()
+    return finished
 
 
 def main():
     """
     """
-    pass
+    logger = setLogger()
+    currencies_responses = get_responses(200)
+    logger.debug("Got responses")
+    currencies_soups = collect_soups(currencies_responses)
+    logger.debug("Got soups")
+    curr_short_rate_names = collect_short_rate_names(currencies_soups)
+    logger.debug("Collected short rate names")
+    short_rate_names_to_parse = prepare_for_parse(curr_short_rate_names)
+    logger.debug("Got short rate names to parse")
+    short_rate_names_responses = get_short_rate_names_responses(
+        short_rate_names_to_parse)
+    logger.debug("Got short rate names responses")
+    short_rate_names_trees = collect_short_rate_names_trees(
+        short_rate_names_responses)
+    logger.debug("Collected short rate names trees")
+    hash_table = create_hash_table(short_rate_names_trees,
+                                   short_rate_names_to_parse)
+    logger.debug("Created hash_table")
+    create_currencies_tables('userdb',
+                             curr_short_rate_names,
+                             hash_table,
+                             )
+    logger.debug("Created currencies table")
+    task.react(graph_id_parser, (curr_short_rate_names,))
 
 if __name__ == "__main__":
     main()
