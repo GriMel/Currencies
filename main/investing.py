@@ -1,14 +1,19 @@
 # -*- coding: utf-8 -*-
 # !/usr/bin/env
 
+import dryscrape
 import grequests
 import requests
+import treq
+import json
+from time import sleep
 from bs4 import BeautifulSoup as bs
 from lxml import html
 from logger import setLogger
-from databases import Base, Currency, get_or_create
+from databases import Base, Currency, CurrencyRate, Commodity, get_or_create
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from twisted.internet import defer, task, reactor
 
 HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 6.1;' +
@@ -31,7 +36,6 @@ class GraphIDScraper():
         Set url and initialize session
         """
         self.session = None
-        self.logger = setLogging("id_scraper")
         self.init_session()
 
     def init_session(self):
@@ -39,47 +43,56 @@ class GraphIDScraper():
         """
         loaded = False
         self.session = dryscrape.Session()
-        self.logger.debug("Dryscrape session initialized")
         while not loaded:
             try:
                 self.session.visit(self.URL)
                 loaded = True
             except:
                 pass
+        # Sometimes there can appear overlapping area
+        try:
+            overlap = self.session.xpath('//html/body/div[6]/div[2]/div[1]/a')[0]
+            overlap.click()
+        except:
+            pass
         approve = self.session.xpath('//input[@id="terms_and_conds"]')[0]
         approve.left_click()
-        self.logger("Site visited")
 
-    def get_graph_id(self, currency_1, currency2):
+    def get_graph_id(self, currency_1_name, currency2_name):
         """
         Return graph_id for every pair of currencies
         """
         input_field = self.session.xpath('//input[@id="searchTextWmtTvc"]')[0]
-        text = currency_1.short_name + currency2.short_name
+        text = currency_1_name + currency2_name
         input_field.set(text)
-        self.logger.debug("Set {} for input field".format(text))
 
         # Wait until popup is shown
         sleep(1)
-        element = self.session.xpath('//td[@class="first symbolName"]')[0]
-        element.click()
-        self.logger.debug("Selected element from popup")
+        got_popup = False
+        while not got_popup:
+            try:
+                element = self.session.xpath('//td[@class="first symbolName"]')[0]
+                element.click()
+                got_popup = True
+            except IndexError:
+                sleep(1)
 
         submit = self.session.xpath('//a[@id="the_submit_button"]')[0]
         submit.left_click()
-        self.logger.debug("HTML generated")
 
         # Start retrieving id
-        txt = session.xpath('//textarea[@id="output"]')[0]
+        txt = self.session.xpath('//textarea[@id="output"]')[0]
         soup = bs(txt.value(), "lxml")
         src = soup.find('iframe', False)['src']
         element_id = src.split('&')[0].split('=')[-1]
         return element_id
 
 
-def get_responses(url, limit):
+def get_responses(limit):
     """
     """
+    url =\
+        "http://www.investing.com/currencies/Service/currency?currency_ID={0}"
     rs = (grequests.get(url.format(i),
                         headers=HEADERS) for i in range(limit))
     responses = grequests.map(rs)
@@ -108,7 +121,8 @@ def collect_short_rate_names(soups):
             # Investing sometimes returns '/RUB' or 'USD/'
             if name.startswith("/") or name.endswith("/"):
                 continue
-            short_rate_names.append(name)
+            if name not in short_rate_names:
+                short_rate_names.append(name)
     return short_rate_names
 
 
@@ -133,7 +147,7 @@ def prepare_for_parse(short_rate_names):
     return to_parse
 
 
-def get_short_rate_name_responses(short_rate_names):
+def get_short_rate_names_responses(short_rate_names):
     """
     """
     url = "http://www.investing.com/currencies/{}"
@@ -142,6 +156,15 @@ def get_short_rate_name_responses(short_rate_names):
           for value in values)
     responses = grequests.map(rs)
     return responses
+
+
+def collect_short_rate_names_trees(responses):
+    """
+    """
+    trees = []
+    for response in responses:
+        trees.append(html.fromstring(response.content))
+    return trees
 
 
 def return_proper_name(tree, bad_name, other_name):
@@ -173,12 +196,11 @@ def return_page_tree(currency_rate):
     return html.fromstring(response.content)
 
 
-def create_hash_table(responses, short_names):
+def create_hash_table(trees, short_names):
     """
     """
     hash_table = {}
-    for response, short_name in zip(responses, short_names):
-        tree = html.fromstring(response.content)
+    for tree, short_name in zip(trees, short_names):
         name1 = tree.cssselect('div.right > div > span')[5].text
         name2 = tree.cssselect('div.right > div > span')[7].text
         if name1.endswith("..."):
@@ -198,7 +220,7 @@ def create_table(tablename, short_names, hash_table):
     """
     Create SQLAlchemy table
     """
-    table_engine = 'sqlite:///{}.sqlite3'
+    table_engine = 'sqlite:///{}.sqlite3'.format(tablename)
     engine = create_engine(table_engine)
     Base.metadata.create_all(engine)
     Session = sessionmaker(bind=engine)
