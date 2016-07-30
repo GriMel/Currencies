@@ -216,7 +216,43 @@ def create_hash_table(trees, short_names):
     return hash_table
 
 
-def create_table(tablename, short_names, hash_table):
+def get_graph_id(item):
+    """
+    """
+    value = "".join(item.split("/"))
+    url = "http://tvc.forexprostools.com/"\
+          "8ffb9c48396938f5fac698799da1cef9/"\
+          "1469440167/1/1/7/search?limit=30&"\
+          "query={}&type=&exchange="
+
+    response = requests.get(url.format(value), headers=HEADERS).json()[0]
+    return response['ticker']
+
+
+def get_graph_ids(short_rate_names):
+    """
+    """
+    url = "http://tvc.forexprostools.com/"\
+          "8ffb9c48396938f5fac698799da1cef9/"\
+          "1469440167/1/1/7/search?limit=30&"\
+          "query={}&type=&exchange="
+    graph_ids = []
+    values = ["".join(short.split("/")) for short in short_rate_names]
+    responses = []
+    left = values[:250]
+    while len(left) != 0:
+        rs = (grequests.get(url.format(value), headers=HEADERS) for value in left)
+        responses.extend(grequests.map(rs))
+        print("Proceeded")
+        sleep(1)
+        values = values[250:]
+        left = values[:250]
+    for response in responses:
+        graph_ids.append(response.json()[0]['ticker'])
+    return graph_ids
+
+
+def create_currencies_tables(tablename, short_names, hash_table):
     """
     Create SQLAlchemy table
     """
