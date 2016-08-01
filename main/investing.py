@@ -10,9 +10,8 @@ from time import sleep
 from bs4 import BeautifulSoup as bs
 from lxml import html
 from logger import setLogger
-from databases import Base, Currency, CurrencyRate, Commodity, get_or_create
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from databases import Base, Currency, CurrencyRate, Commodity,\
+                      get_or_create, init_session
 from twisted.internet import defer, task, reactor
 
 HEADERS = {
@@ -254,13 +253,9 @@ def get_graph_ids(short_rate_names):
 
 def create_currencies_tables(tablename, short_names, hash_table):
     """
-    Create SQLAlchemy table
+    Create sqlite3 table of currencies
     """
-    table_engine = 'sqlite:///{}.sqlite3'.format(tablename)
-    engine = create_engine(table_engine)
-    Base.metadata.create_all(engine)
-    Session = sessionmaker(bind=engine)
-    session = Session()
+    session = init_session(tablename)
     for row in short_names:
         short1, short2 = row.split("/")
         name1, name2 = hash_table[short1], hash_table[short2]
@@ -285,21 +280,24 @@ def create_currencies_tables(tablename, short_names, hash_table):
 def save_graph_id(response, session, curr1, curr2):
     """
     """
-    curr1_row = session.query(Currency).\
-        filter(Currency.short_name == curr1).\
-        first()
-    curr2_row = session.query(Currency).\
-        filter(Currency.short_name == curr2).\
-        first()
-    curr_rate_row = session.query(CurrencyRate).\
-        filter(CurrencyRate.currency_from == curr1_row.id).\
-        filter(CurrencyRate.currency_to == curr2_row.id).first()
+    curr1_row = get_or_create(session,
+                              Currency,
+                              short_name=curr1)
+    curr2_row = get_or_create(session,
+                              Currency,
+                              short_name=curr2)
+    curr_rate_row = get_or_create(session,
+                                  CurrencyRate,
+                                  currency_from=curr1_row.id,
+                                  currency_to=curr2_row.id)
     string = response.decode('utf-8')
     try:
         dictionary = json.loads(string)[0]
         curr_rate_row.graph_id = int(dictionary['ticker'])
+        session.add(curr_rate_row)
     except:
         session.delete(curr_rate_row)
+    session.flush()
 
 
 def query(session, curr1, curr2):
