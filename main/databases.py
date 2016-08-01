@@ -1,7 +1,19 @@
 from sqlalchemy import Column, Integer, String, ForeignKey, Boolean
 from sqlalchemy.ext.declarative import declarative_base
-
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 Base = declarative_base()
+
+
+def init_session(tablename):
+    """
+    """
+    table_engine = 'sqlite:///{}.sqlite3'.format(tablename)
+    engine = create_engine(table_engine)
+    Base.metadata.create_all(engine)
+    Session = sessionmaker(bind=engine)
+    session = Session()
+    return session
 
 
 def get_or_create(session, model, **kwargs):
@@ -11,6 +23,7 @@ def get_or_create(session, model, **kwargs):
     else:
         instance = model(**kwargs)
         session.add(instance)
+        session.flush()
         return instance
 
 
