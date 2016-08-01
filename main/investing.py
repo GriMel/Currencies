@@ -314,6 +314,13 @@ def query(session, curr1, curr2):
     return get
 
 
+def commit_database(body, session):
+    """
+    """
+    session.commit()
+    print("Done")
+
+
 def parallel(session, iterable, count):
     """
     """
@@ -326,13 +333,9 @@ def parallel(session, iterable, count):
 def graph_id_parser(reactor, curr_short_rate_names):
     """
     """
-    table_engine = 'sqlite:///userdb.sqlite3'
-    engine = create_engine(table_engine)
-    Session = sessionmaker(bind=engine)
-    session = Session()
+    session = init_session('userdb')
     finished = parallel(session, curr_short_rate_names, 1000)
-    finished.addCallback(print)
-    session.commit()
+    finished.addCallback(commit_database, session)
     return finished
 
 
