@@ -227,6 +227,50 @@ def create_hash_table(trees, short_names):
     return hash_table
 
 
+def get_region_name(url):
+    """
+    """
+    name = url.split("/")[-1][0].upper() +\
+           url.split("/")[-1][1:].replace("-", " ")
+    return name
+
+
+def region_name_and_trees():
+    """
+    """
+    urls = (
+        "http://investing.com/currencies/north-america",
+        "http://investing.com/currencies/asia",
+        "http://investing.com/currencies/middle-east",
+        "http://investing.com/currencies/central-america",
+        "http://investing.com/currencies/pacific",
+        "http://investing.com/currencies/africa",
+        "http://investing.com/currencies/south-america",
+        "http://investing.com/currencies/europe",
+        "http://investing.com/currencies/caribbean"
+    )
+    region_name_tree = {}
+    rs = (grequests.get(url, headers=HEADERS) for url in urls)
+    responses = grequests.map(rs)
+    for url, response in zip(urls, responses):
+        region_name = get_region_name(url)
+        tree = html.fromstring(response.content)
+        region_name_tree.update({region_name: tree})
+    return region_name_tree
+
+
+def create_region_currency_hash_table(region_name_tree):
+    """
+    """
+    region_curr_hash_table = {}
+    for region_name, tree in region_name_tree.items():
+        currency_elements = tree.cssselect('h2')
+        for element in currency_elements:
+            currency_name = element.text
+            region_curr_hash_table[currency_name] = region_name
+    return region_curr_hash_table
+
+
 def get_graph_id(item):
     """
     """
