@@ -202,14 +202,26 @@ def create_hash_table(trees, short_names):
     for tree, short_name in zip(trees, short_names):
         name1 = tree.cssselect('div.right > div > span')[5].text
         name2 = tree.cssselect('div.right > div > span')[7].text
+        try:
+            country1 = tree.cssselect(
+                'thead > tr > th.icon > span')[0].get('class').split(" ")[1]\
+                or "Other"
+        except:
+            country1 = "Other"
+        try:
+            country2 = tree.cssselect(
+                'thead > tr > th.icon > span')[1].get('class').split(" ")[1]\
+                or "Other"
+        except:
+            country2 = "Other"
         if name1.endswith("..."):
             name1 = return_proper_name(tree, name1, name2)
         if name2.endswith("..."):
             name2 = return_proper_name(tree, name2, name1)
         short_name1 = short_name.split("/")[0]
         short_name2 = short_name.split("/")[1]
-        hash_table[short_name1] = name1
-        hash_table[short_name2] = name2
+        hash_table[short_name1] = {'country': country1, 'name': name1}
+        hash_table[short_name2] = {'country': country2, 'name': name2}
         print("{} - {}".format(name1, short_name1))
         print("{} - {}".format(name2, short_name2))
     return hash_table
@@ -258,15 +270,20 @@ def create_currencies_tables(tablename, short_names, hash_table):
     session = init_session(tablename)
     for row in short_names:
         short1, short2 = row.split("/")
-        name1, name2 = hash_table[short1], hash_table[short2]
+        name1, name2 = hash_table[short1]['name'],\
+            hash_table[short2]['name']
+        country1, country2 = hash_table[short1]['country'],\
+            hash_table[short2]['country']
         curr1 = get_or_create(session,
                               Currency,
                               name=name1,
-                              short_name=short1)
+                              short_name=short1,
+                              country=country1)
         curr2 = get_or_create(session,
                               Currency,
                               name=name2,
-                              short_name=short2)
+                              short_name=short2,
+                              country=country2)
         url = "http:/investing.com/currencies/{}-{}".format(
             short1.lower(), short2.lower())
         cur_rate = get_or_create(session,
