@@ -26,6 +26,24 @@ def get_or_create(session, model, **kwargs):
         session.flush()
         return instance
 
+class Region(Base):
+    """
+    Region base - Europe, North America
+    """
+    __tablename__ = "regions"
+    id = Column(Integer, primary_key=True)
+    name = Column(String)
+
+
+class Country(Base):
+    """
+    Country base - Italy, France
+    """
+    __tablename__ = "countries"
+    id = Column(Integer, primary_key=True)
+    name = Column(String)
+    region = Column(ForeignKey('regions.id'))
+
 
 class Currency(Base):
     """
@@ -35,6 +53,7 @@ class Currency(Base):
     id = Column(Integer, primary_key=True)
     name = Column(String)
     short_name = Column(String(3))
+    country = Column(ForeignKey('countries.id'))
 
 
 class CurrencyRate(Base):
